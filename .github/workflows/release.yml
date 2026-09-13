@@ -48,7 +48,7 @@ jobs:
         run: python scripts/47_validate_pre_v1_hardening.py
       - name: Validate documentation portal
         run: python scripts/48_validate_documentation_portal.py
-      - name: Validate OpenClaw 2026.9.2 lock
+      - name: Validate OpenClaw 2026.9.4 lock
         run: python scripts/49_validate_openclaw_version.py
       - name: Validate SemVer tag and V1 readiness
         run: python scripts/24_validate_release.py --tag "${GITHUB_REF_NAME}"
