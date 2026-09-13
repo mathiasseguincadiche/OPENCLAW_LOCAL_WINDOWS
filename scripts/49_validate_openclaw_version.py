@@ -6,11 +6,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME_LOCK = ROOT / "config" / "v1" / "runtime_versions.json"
 
-EXPECTED_OPENCLAW_VERSION = "2026.9.2"
-EXPECTED_OPENCLAW_RELEASE_SHA = "3928bad9badfcb6c7d140530435e806fb8092190"
+EXPECTED_OPENCLAW_VERSION = "2026.9.4"
+EXPECTED_OPENCLAW_RELEASE_SHA = "3a9d69db306cd7f081e06254cb89c4bcc14a7107"
 EXPECTED_OPENCLAW_INTEGRITY = (
-    "sha512-M6C7UsnX815nv26qBJFYGe6aGzv+ftZLRzV6S9oRXUtXg2Yn67eVntpssT94kgkquKVSeUx"
-    "erUg0j1ONp4WYQg=="
+    "sha512-lTQpEEe1Xm3u2PCHaPEr+vP8paGk1vLdHuzdItsNToaLI6hAqRVvgJYg+GxukJhETJp4tPy/"
+    "S1Gftl4KuB8n7A=="
 )
 EXPECTED_PARALLEL_PACKAGE = "@openclaw/parallel-plugin"
 
@@ -81,10 +81,10 @@ def main() -> int:
             f"{EXPECTED_OPENCLAW_VERSION}, reçue={openclaw.get('preferred')}"
         )
     if openclaw.get("release_sha") != EXPECTED_OPENCLAW_RELEASE_SHA:
-        failures.append("OpenClaw: release_sha ne correspond pas à 2026.9.2")
+        failures.append("OpenClaw: release_sha ne correspond pas à 2026.9.4")
     if openclaw.get("integrity") != EXPECTED_OPENCLAW_INTEGRITY:
         failures.append(
-            "OpenClaw: npm SRI ne correspond pas à l'artefact 2026.9.2 verrouillé"
+            "OpenClaw: npm SRI ne correspond pas à l'artefact 2026.9.4 verrouillé"
         )
 
     plugins = openclaw.get("plugins")
@@ -103,7 +103,7 @@ def main() -> int:
             f"{EXPECTED_OPENCLAW_VERSION}"
         )
 
-    stale_version = "2026.9." + "1"
+    stale_version = "2026.9." + "2"
     for path in _iter_active_text_files():
         text = path.read_text(encoding="utf-8", errors="replace")
         if stale_version in text:
@@ -135,7 +135,7 @@ def main() -> int:
         text = integration_doc.read_text(encoding="utf-8")
         if EXPECTED_OPENCLAW_VERSION not in text:
             failures.append(
-                "docs/OPENCLAW_INTEGRATION.md doit annoncer explicitement OpenClaw 2026.9.2"
+                "docs/OPENCLAW_INTEGRATION.md doit annoncer explicitement OpenClaw 2026.9.4"
             )
 
     if failures:
