@@ -22,13 +22,13 @@ Sur l'Intel Arc B580, **Vulkan est l'unique accélération GPU LLM supportée**.
 
 ## Runtime OpenClaw verrouillé
 
-Le lock V2 actuel fixe **OpenClaw 2026.9.2** avec le plugin Parallel officiel aligné sur **2026.9.2**. Le projet n'installe ni `main` ni une version flottante.
+Le lock V2 actuel fixe **OpenClaw 2026.9.4** avec le plugin Parallel officiel aligné sur **2026.9.4**. Le projet n'installe ni `main` ni une version flottante.
 
 ```text
-OpenClaw      : 2026.9.2
-release SHA   : 3928bad9badfcb6c7d140530435e806fb8092190
-npm SRI       : sha512-M6C7UsnX815nv26qBJFYGe6aGzv+ftZLRzV6S9oRXUtXg2Yn67eVntpssT94kgkquKVSeUxerUg0j1ONp4WYQg==
-Parallel      : @openclaw/parallel-plugin@2026.9.2
+OpenClaw      : 2026.9.4
+release SHA   : 3a9d69db306cd7f081e06254cb89c4bcc14a7107
+npm SRI       : sha512-lTQpEEe1Xm3u2PCHaPEr+vP8paGk1vLdHuzdItsNToaLI6hAqRVvgJYg+GxukJhETJp4tPy/S1Gftl4KuB8n7A==
+Parallel      : @openclaw/parallel-plugin@2026.9.4
 ```
 
 Après une modification du lock runtime :
@@ -39,6 +39,18 @@ openclaw --version
 ```
 
 `configure-openclaw` vérifie la version verrouillée avant toute mutation.
+
+## Compatibilité spécifique OpenClaw 2026.9.4
+
+Le projet exploite les comportements 2026.9.4 de façon conservatrice :
+
+- **Node.js 26.0.0 reste le runtime préféré** du lock local, conformément à la recommandation OpenClaw pour les installations de packages ;
+- `install-full` réexécute `openclaw gateway install --runtime node --force --json`, ce qui permet au service Gateway de se rattacher au runtime Node géré après une montée de version ;
+- le plugin `@openclaw/parallel-plugin` reste épinglé exactement sur la même version que le core et est convergé par la CLI officielle ;
+- le bootstrap continue de calculer localement le SHA-512 du tarball npm et refuse l'installation si le SRI ne correspond pas au lock ;
+- une montée de version sur un état existant doit être précédée d'une **sauvegarde vérifiée** : le rollback applicatif OpenClaw ne remplace pas la restauration des données lorsqu'une migration de données a eu lieu.
+
+OpenClaw 2026.9.4 fournit aussi `OPENCLAW_CONFIG_READONLY=1` pour les configurations gérées par un outil externe. `OPENCLAW_LOCAL` ne l'active pas globalement pour l'instant, car `configure-openclaw` est lui-même le gestionnaire qui doit pouvoir créer la baseline, converger les plugins et appliquer le patch. Si ce mode est activé ultérieurement, il devra être désactivé uniquement pendant la fenêtre de maintenance gérée puis réactivé pour le Gateway et les commandes opérateur.
 
 ## Flotte locale active V2
 
