@@ -51,6 +51,7 @@
       "parallel": {
         "package": "@openclaw/parallel-plugin",
         "preferred": "2026.9.4",
+        "integrity": "sha512-/6XIzmiF1iJtXzKYZxO+v92xTzOvTnSQJh89tTQfpZkyk5SxsaQtBAeBwFT7sv3blGIYhGEVhs3+hf4rKVIqtA==",
         "provider": "parallel-free"
       }
     },
