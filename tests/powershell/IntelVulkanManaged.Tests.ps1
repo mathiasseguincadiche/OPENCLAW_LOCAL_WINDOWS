@@ -139,8 +139,8 @@ Describe 'Intel Vulkan managed B580 hybrid runtime' {
         $script:HybridE2E | Should -Match '-FailureEvidenceRoot \$ProofsRoot'
     }
 
-    It 'reste compatible avec la CLI OpenClaw verrouillée 2026.9.2' {
-        [string]$script:HybridRuntime.openclaw.preferred | Should -Be '2026.9.2'
+    It 'reste compatible avec la CLI OpenClaw verrouillée 2026.9.4' {
+        [string]$script:HybridRuntime.openclaw.preferred | Should -Be '2026.9.4'
         $script:HybridE2E | Should -Not -Match "'agent', 'exec'"
         $script:HybridE2E | Should -Not -Match "'--cwd'"
         $script:HybridE2E | Should -Not -Match "'--auth-env-only'"
