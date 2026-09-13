@@ -46,7 +46,7 @@ jobs:
         run: python scripts/47_validate_pre_v1_hardening.py
       - name: Documentation portal gate
         run: python scripts/48_validate_documentation_portal.py
-      - name: OpenClaw 2026.9.2 lock gate
+      - name: OpenClaw 2026.9.4 lock gate
         run: python scripts/49_validate_openclaw_version.py
       - name: Release contracts
         run: python scripts/24_validate_release.py
