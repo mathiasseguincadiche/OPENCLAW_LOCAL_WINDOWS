@@ -18,11 +18,14 @@ $PullModels = Join-Path $PSScriptRoot '03_pull_models.ps1'
 $ConfigureOpenClaw = Join-Path $PSScriptRoot '08_configure_openclaw.ps1'
 $VerifyLocal = Join-Path $PSScriptRoot '04_verify_local.ps1'
 $GatewayHealth = Join-Path $PSScriptRoot 'lib\gateway_health.ps1'
+$PlatformBackup = Join-Path $PSScriptRoot 'lib\platform_backup.ps1'
 
-if (-not (Test-Path -LiteralPath $GatewayHealth)) {
-    throw "Bibliothèque de santé Gateway introuvable: $GatewayHealth"
+foreach ($Library in @($GatewayHealth, $PlatformBackup)) {
+    if (-not (Test-Path -LiteralPath $Library)) {
+        throw "Bibliothèque d'installation introuvable: $Library"
+    }
+    . $Library
 }
-. $GatewayHealth
 
 function Get-PlatformRoot {
     if ($env:OPENCLAW_LOCAL_ROOT) {
@@ -58,7 +61,11 @@ function Get-OpenClawCommand([string]$PlatformRoot) {
     throw 'OpenClaw est introuvable après bootstrap.'
 }
 
+$PlatformRoot = Get-PlatformRoot
+
 if ($DryRun) {
+    Write-Host '[DRY-RUN] Si projects/state/proofs existent, créer et vérifier un backup SHA256 avant toute mutation.'
+    Write-Host "[DRY-RUN] Racine backup: $(Join-Path $PlatformRoot 'backup\pre-upgrade-<UTC>')"
     Invoke-ScriptChecked -Path $Bootstrap -Parameters @{
         DryRun = $true
         AllowRuntimeDrift = $AllowRuntimeDrift
@@ -69,11 +76,17 @@ if ($DryRun) {
         -Description 'Dry-run modèles'
     Invoke-ScriptChecked -Path $ConfigureOpenClaw -Parameters @{ DryRun = $true } `
         -Description 'Dry-run OpenClaw'
+    Write-Host '[DRY-RUN] Après configuration, OPENCLAW_CONFIG_READONLY=1 devient le mode d exploitation.'
     Write-Host '[DRY-RUN] Gateway service: install/start en mode réel uniquement.'
     Write-Host "[DRY-RUN] Readiness RPC bornée: timeout=${GatewayReadyTimeoutSeconds}s, intervalle=${GatewayPollIntervalMilliseconds}ms."
     Write-Host "[DRY-RUN] En cas d'échec persistant, diagnostic local redigé sous proofs\gateway."
     Write-Host '[DRY-RUN] Aucune mutation réalisée.'
     exit 0
+}
+
+$BackupResult = New-OpenClawPreUpgradeBackup -PlatformRoot $PlatformRoot
+if ($null -ne $BackupResult -and -not [bool]$BackupResult.verified) {
+    throw 'Installation refusée: le backup pré-upgrade existe mais n est pas vérifié.'
 }
 
 Invoke-ScriptChecked -Path $Bootstrap -Parameters @{
@@ -83,11 +96,12 @@ Invoke-ScriptChecked -Path $ConfigureOllama -Description 'Configuration Ollama'
 Invoke-ScriptChecked -Path $PullModels -Description 'Téléchargement des modèles'
 Invoke-ScriptChecked -Path $ConfigureOpenClaw -Description 'Configuration OpenClaw'
 
-$PlatformRoot = Get-PlatformRoot
 $OpenClaw = Get-OpenClawCommand $PlatformRoot
 $env:OPENCLAW_STATE_DIR = Join-Path $PlatformRoot 'state'
 $env:OLLAMA_API_KEY = 'ollama-local'
 $env:OPENCLAW_LOCAL_CLOUD_ENABLED = 'false'
+$env:OPENCLAW_CONFIG_READONLY = '1'
+[Environment]::SetEnvironmentVariable('OPENCLAW_CONFIG_READONLY', '1', 'User')
 
 if (-not $SkipGatewayService) {
     & $OpenClaw gateway install --runtime node --force --json
@@ -114,5 +128,9 @@ if (-not $SkipGatewayService) {
 Invoke-ScriptChecked -Path $VerifyLocal -Description 'Vérification Ollama'
 Write-Host 'OK  Installation complète OPENCLAW_LOCAL terminée.'
 Write-Host "Repo: $RepoRoot"
+if ($null -ne $BackupResult) {
+    Write-Host "Backup vérifié: $($BackupResult.path)"
+}
+Write-Host 'Config runtime: OPENCLAW_CONFIG_READONLY=1'
 Write-Host 'Étape suivante: .\menu.ps1 -Action e2e puis .\menu.ps1 -Action qualification.'
 exit 0
