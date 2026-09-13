@@ -6,6 +6,9 @@ BeforeAll {
     $RuntimeLockPath = Join-Path $RepoRoot 'config\v1\runtime_versions.json'
     $script:RuntimeLock = Get-Content -Raw -LiteralPath $RuntimeLockPath | ConvertFrom-Json
     $script:ConfigureScript = Join-Path $RepoRoot 'scripts\windows\08_configure_openclaw.ps1'
+    $script:InstallFull = Get-Content -Raw -LiteralPath (
+        Join-Path $RepoRoot 'scripts\windows\11_install_full.ps1'
+    )
 }
 
 Describe 'Contrat OpenClaw 2026.9.4' {
@@ -22,6 +25,13 @@ Describe 'Contrat OpenClaw 2026.9.4' {
         [string]$script:RuntimeLock.openclaw.plugins.parallel.package | Should -Be '@openclaw/parallel-plugin'
         [string]$script:RuntimeLock.openclaw.plugins.parallel.preferred | Should -Be '2026.9.4'
         [string]$script:RuntimeLock.openclaw.plugins.parallel.provider | Should -Be 'parallel-free'
+    }
+
+    It 'conserve Node 26 et répare explicitement le Gateway sur le runtime Node géré' {
+        [string]$script:RuntimeLock.node.preferred | Should -Be '26.0.0'
+        $script:InstallFull | Should -Match (
+            'gateway\s+install\s+--runtime\s+node\s+--force\s+--json'
+        )
     }
 
     It 'affiche 2026.9.4 comme version verrouillée dans configure-openclaw DryRun' {
