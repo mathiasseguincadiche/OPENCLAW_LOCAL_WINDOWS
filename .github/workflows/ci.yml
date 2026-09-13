@@ -57,6 +57,39 @@ jobs:
       - name: Tests with coverage
         run: pytest -q --cov=clawlocal --cov-report=term-missing --cov-fail-under=75
 
+  openclaw-npm-smoke:
+    name: openclaw-npm-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Set up Node 26.0.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "26.0.0"
+      - name: Verify npm artifacts and OpenClaw CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          CORE_VERSION="$(python -c 'import json; print(json.load(open("config/v1/runtime_versions.json"))["openclaw"]["preferred"])')"
+          CORE_EXPECTED="$(python -c 'import json; print(json.load(open("config/v1/runtime_versions.json"))["openclaw"]["integrity"])')"
+          PARALLEL_VERSION="$(python -c 'import json; print(json.load(open("config/v1/runtime_versions.json"))["openclaw"]["plugins"]["parallel"]["preferred"])')"
+
+          CORE_REGISTRY="$(npm view "openclaw@${CORE_VERSION}" dist.integrity)"
+          test "${CORE_REGISTRY}" = "${CORE_EXPECTED}"
+
+          PARALLEL_REGISTRY="$(npm view "@openclaw/parallel-plugin@${PARALLEL_VERSION}" dist.integrity)"
+          echo "PARALLEL_NPM_INTEGRITY=${PARALLEL_REGISTRY}"
+
+          TMP="$(mktemp -d)"
+          trap 'rm -rf "${TMP}"' EXIT
+          npm pack "openclaw@${CORE_VERSION}" --ignore-scripts --pack-destination "${TMP}" >/dev/null
+          npm install --global --prefix "${TMP}/global" "${TMP}/openclaw-${CORE_VERSION}.tgz"
+          ACTUAL_VERSION="$("${TMP}/global/bin/openclaw" --version)"
+          echo "OPENCLAW_NPM_SMOKE_VERSION=${ACTUAL_VERSION}"
+          grep -F "${CORE_VERSION}" <<<"${ACTUAL_VERSION}" >/dev/null
+
   python-compatibility:
     name: python-${{ matrix.python-version }}
     runs-on: ubuntu-latest
