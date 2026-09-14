@@ -61,8 +61,10 @@ function Write-ActionTranscriptStart {
         New-Item -ItemType Directory -Path $LogsRoot -Force | Out-Null
         $Stamp = Get-Date -Format 'yyyyMMdd_HHmmssfff'
         $SafeName = $Name -replace '[^a-zA-Z0-9._-]', '_'
-        $LogPath = Join-Path $LogsRoot "${Stamp}_${SafeName}.log"
+        $RelativeLogPath = "proofs/logs/${Stamp}_${SafeName}.log"
+        $LogPath = Join-Path (Get-PlatformRoot) $RelativeLogPath
         Start-Transcript -Path $LogPath -UseMinimalHeader | Out-Null
+        $env:OPENCLAW_LOCAL_ACTIVE_TRANSCRIPT_RELATIVE = $RelativeLogPath
         Write-Host "LOG=$LogPath"
         Write-Host "ACTION=$Name"
         Write-Host "STARTED_UTC=$([DateTimeOffset]::UtcNow.ToString('o'))"
@@ -71,6 +73,7 @@ function Write-ActionTranscriptStart {
         return $LogPath
     }
     catch {
+        Remove-Item Env:OPENCLAW_LOCAL_ACTIVE_TRANSCRIPT_RELATIVE -ErrorAction SilentlyContinue
         Write-Warning "Journalisation automatique indisponible: $($_.Exception.Message)"
         return $null
     }
@@ -89,6 +92,9 @@ function Write-ActionTranscriptStop {
     }
     catch {
         Write-Warning "Impossible d'arrêter proprement le transcript: $($_.Exception.Message)"
+    }
+    finally {
+        Remove-Item Env:OPENCLAW_LOCAL_ACTIVE_TRANSCRIPT_RELATIVE -ErrorAction SilentlyContinue
     }
     Write-Host "LOG_SAVED=$Path"
 }
