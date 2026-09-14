@@ -13,6 +13,7 @@ from clawlocal.project_contracts import (
 from clawlocal.project_governance import (
     assert_sensitive_action,
     cloud_policy_for_project,
+    external_service_policy_for_project,
     required_criticality_gates,
 )
 from clawlocal.project_intake import create_project
@@ -131,6 +132,8 @@ def test_classification_and_action_gates() -> None:
         classification="restricted",
     )
     assert cloud_policy_for_project(restricted)["allowed"] is False
+    assert cloud_policy_for_project(restricted)["reason"] == "llm_cloud_not_supported"
+    assert external_service_policy_for_project(restricted)["allowed"] is False
     with pytest.raises(PermissionError):
         assert_sensitive_action(restricted, "make_public", human_approved=False)
     with pytest.raises(PermissionError):
@@ -138,8 +141,13 @@ def test_classification_and_action_gates() -> None:
 
     confidential = dict(restricted)
     confidential["classification"] = "confidential"
-    assert cloud_policy_for_project(confidential)["allowed"] is False
     assert cloud_policy_for_project(
+        confidential,
+        redacted=True,
+        human_approved=True,
+    )["allowed"] is False
+    assert external_service_policy_for_project(confidential)["allowed"] is False
+    assert external_service_policy_for_project(
         confidential,
         redacted=True,
         human_approved=True,
