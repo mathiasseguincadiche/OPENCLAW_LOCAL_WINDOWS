@@ -59,7 +59,7 @@ Describe 'Transcript actif et backup pré-upgrade' {
         $Previous = $env:OPENCLAW_LOCAL_ACTIVE_TRANSCRIPT_RELATIVE
         try {
             $env:OPENCLAW_LOCAL_ACTIVE_TRANSCRIPT_RELATIVE = '../state/openclaw.json'
-            @(Get-OpenClawBackupExcludedRelativePaths) | Should -Not -Contain '../state/openclaw.json'
+            @(Get-OpenClawBackupExcludedPath) | Should -Not -Contain '../state/openclaw.json'
             Test-OpenClawBackupPathExcluded -LogicalPath 'state/openclaw.json' | Should -BeFalse
         }
         finally {
