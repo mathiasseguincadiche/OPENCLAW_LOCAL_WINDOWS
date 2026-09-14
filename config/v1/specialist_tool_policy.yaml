@@ -1,0 +1,224 @@
+schema_version: 1.0.0
+platform_version: 0.2.0
+execution:
+  mediated_by_control_plane: true
+  shell: false
+  workspace_only: true
+  timeout_seconds: 120
+  max_timeout_seconds: 900
+  fail_closed_on_missing_binary: true
+  record_command: true
+  record_stdout_stderr: true
+  record_sha256_outputs: true
+roles:
+  chef-operations: []
+  expert-recherche: []
+  architecte-solutions:
+  - mermaid_render_svg
+  - graphviz_render_svg
+  ingenieur-devops:
+  - terraform_fmt_check
+  - terraform_validate
+  - ansible_lint
+  - docker_compose_validate
+  - shellcheck
+  - yamllint
+  ingenieur-securite:
+  - gitleaks_scan
+  - trivy_fs
+  - trivy_config
+  - checkov_scan
+  - osv_scan
+  - syft_sbom
+  - grype_sbom
+  ingenieur-release-forges:
+  - publication_render
+  - mermaid_render_svg
+  - graphviz_render_svg
+  - syft_sbom
+  - grype_sbom
+  redacteur-technique:
+  - mermaid_render_svg
+  - graphviz_render_svg
+  - markdownlint
+  - lychee_check
+  auditeur-qualite:
+  - markdownlint
+  - lychee_check
+tools:
+  mermaid_render_svg:
+    executable: mmdc
+    target_kind: file
+    input_extensions:
+    - .mmd
+    output_extensions:
+    - .svg
+    args:
+    - -i
+    - '{target}'
+    - -o
+    - '{output}'
+    - -b
+    - transparent
+  graphviz_render_svg:
+    executable: dot
+    target_kind: file
+    input_extensions:
+    - .dot
+    output_extensions:
+    - .svg
+    args:
+    - -Tsvg
+    - '{target}'
+    - -o
+    - '{output}'
+  terraform_fmt_check:
+    executable: terraform
+    target_kind: directory
+    args:
+    - fmt
+    - -check
+    - -recursive
+    - '{target}'
+  terraform_validate:
+    executable: terraform
+    target_kind: directory
+    args:
+    - -chdir={target}
+    - validate
+    - -no-color
+  ansible_lint:
+    executable: ansible-lint
+    target_kind: any
+    input_extensions:
+    - .yml
+    - .yaml
+    args:
+    - '{target}'
+  docker_compose_validate:
+    executable: docker
+    target_kind: file
+    input_extensions:
+    - .yml
+    - .yaml
+    args:
+    - compose
+    - -f
+    - '{target}'
+    - config
+    - --quiet
+  shellcheck:
+    executable: shellcheck
+    target_kind: file
+    input_extensions:
+    - .sh
+    - .bash
+    args:
+    - '{target}'
+  yamllint:
+    executable: yamllint
+    target_kind: any
+    input_extensions:
+    - .yml
+    - .yaml
+    args:
+    - '{target}'
+  gitleaks_scan:
+    executable: gitleaks
+    target_kind: directory
+    args:
+    - detect
+    - --source
+    - '{target}'
+    - --no-banner
+    - --redact
+    - --exit-code
+    - '1'
+  trivy_fs:
+    executable: trivy
+    target_kind: directory
+    args:
+    - fs
+    - --exit-code
+    - '1'
+    - --scanners
+    - vuln,secret,misconfig
+    - '{target}'
+  trivy_config:
+    executable: trivy
+    target_kind: directory
+    args:
+    - config
+    - --exit-code
+    - '1'
+    - '{target}'
+  checkov_scan:
+    executable: checkov
+    target_kind: directory
+    args:
+    - -d
+    - '{target}'
+    - --quiet
+    - --compact
+  osv_scan:
+    executable: osv-scanner
+    target_kind: directory
+    args:
+    - scan
+    - --recursive
+    - '{target}'
+  syft_sbom:
+    executable: syft
+    target_kind: directory
+    output_extensions:
+    - .json
+    args:
+    - '{target}'
+    - -o
+    - spdx-json={output}
+  grype_sbom:
+    executable: grype
+    target_kind: file
+    input_extensions:
+    - .json
+    args:
+    - sbom:{target}
+    - --fail-on
+    - high
+  markdownlint:
+    executable: markdownlint-cli2
+    target_kind: any
+    input_extensions:
+    - .md
+    args:
+    - '{target}'
+  lychee_check:
+    executable: lychee
+    target_kind: any
+    input_extensions:
+    - .md
+    - .html
+    args:
+    - --no-progress
+    - '{target}'
+  publication_render:
+    executable: python
+    target_kind: file
+    input_extensions:
+    - .qmd
+    args:
+    - -m
+    - clawlocal.publication
+    - --project
+    - .
+    - --source
+    - '{target}'
+principles:
+- 'Les agents ne reçoivent pas de shell supplémentaire: le runner exécute uniquement
+  des commandes pré-déclarées.'
+- Architecte, Rédacteur et Auditeur conservent leurs interdictions exec/process; leurs
+  rendus et contrôles sont médiés par le control plane.
+- Une absence de binaire est un échec explicite dès qu'un outil est requis par une
+  tâche.
+- Les sorties et rapports sont confinés au projet central et hashés lorsqu'ils sont
+  matérialisés.

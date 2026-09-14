@@ -1,0 +1,59 @@
+schema_version: "1.0.0"
+platform_version: "0.2.0"
+enabled: true
+
+canonical_source:
+  extensions: [.qmd]
+  source_is_preserved: true
+  template: templates/publication/REPORT_TEMPLATE.qmd
+
+default_output_directory: rendered
+
+outputs:
+  required: [markdown, html, docx, pdf]
+
+render:
+  engine: quarto
+  executable: quarto
+  shell: false
+  timeout_seconds: 300
+  max_timeout_seconds: 900
+  formats:
+    markdown:
+      quarto_format: gfm
+      extension: .md
+    html:
+      quarto_format: html
+      extension: .html
+    docx:
+      quarto_format: docx
+      extension: .docx
+    pdf:
+      quarto_format: typst
+      extension: .pdf
+
+diagram_rendering:
+  source_extensions: [.mmd, .dot]
+  preferred_output: .svg
+  render_before_review: true
+  preserve_source: true
+
+quality_gates:
+  source_sha256_required: true
+  rendered_sha256_required: true
+  rendered_outputs_nonempty: true
+  format_signature_validation: true
+  links_must_be_checkable: true
+  visual_review_required_for_pdf_docx: true
+  independent_audit_required: true
+  fail_closed_if_manifest_corrupt: true
+
+pedagogy:
+  required_sections_when_relevant:
+    - comprendre
+    - utiliser
+    - approfondir
+    - diagnostiquer
+  require_tool_relationship_map: true
+  require_glossary: true
+  require_validation_and_troubleshooting: true

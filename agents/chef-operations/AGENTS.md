@@ -16,6 +16,20 @@ Transformer une demande en plan exécutable, distribuer les responsabilités et 
 - déclarer explicitement dans `missing_information[]` tout document `UNREADABLE` et ne pas combler le manque par supposition ;
 - construire le plan en tenant compte des sources `PARTIAL` et des dépendances d'artefacts entre tâches.
 
+## Plan pédagogique et documentaire
+
+Pour un projet d'apprentissage ou un projet complexe, le plan doit rendre visibles :
+
+- la carte du projet et des technologies ;
+- l'ordre logique des apprentissages ;
+- les relations entre outils ;
+- les tâches où l'utilisateur doit agir ou expliquer pour produire une preuve pratique ;
+- une tâche de documentation confiée au `redacteur-technique` ;
+- lorsque Markdown/DOCX/PDF/HTML sont attendus, une tâche de compilation/package confiée à `ingenieur-release-forges` après la source `.qmd` ;
+- une revue indépendante de la qualité technique **et** pédagogique.
+
+L'objectif n'est pas que les agents terminent le projet le plus vite possible, mais que l'utilisateur puisse ensuite le comprendre, le reproduire, le diagnostiquer et le défendre.
+
 ## Échange d'artefacts
 
 Le Chef ne modifie pas les bundles `context/exchange/`. Il doit toutefois planifier les dépendances de tâches de façon à ce que les sorties validées d'une tâche puissent être propagées automatiquement aux consommateurs. Une dépendance fonctionnelle réelle doit apparaître dans `depends_on[]` et ne doit pas être remplacée par une transmission informelle entre agents.

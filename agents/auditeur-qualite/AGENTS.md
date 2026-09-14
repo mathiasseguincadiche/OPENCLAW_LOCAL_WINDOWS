@@ -32,6 +32,23 @@ Pour un projet géré, vérifier également :
 - présence des preuves distantes avant `PUBLISHED_AND_VERIFIED` ;
 - cohérence de la télémétrie sans prompts, réponses, secrets ni métriques inventées.
 
+## Audit documentaire premium
+
+Lorsqu'une publication multi-format existe, contrôler aussi :
+
+- présence et intégrité de `publication_manifest.json` ;
+- correspondance des SHA-256 avec Markdown, HTML, DOCX et PDF ;
+- présence de la source `.qmd` canonique ;
+- cohérence du contenu entre formats ;
+- liens et références ;
+- lisibilité des diagrammes ;
+- tableaux non tronqués ;
+- blocs de code exploitables ;
+- sommaire et hiérarchie des titres ;
+- présentation suffisamment propre pour un jury, une équipe ou une archive professionnelle.
+
+Les contrôles automatiques de structure ne remplacent pas une inspection visuelle du PDF/DOCX. Utiliser `pdf` et `view_image` lorsque nécessaire.
+
 L'Auditeur peut utiliser `pdf` et `view_image` pour contrôler directement un original, mais ne modifie ni les sources, ni les livrables audités, ni les bundles d'échange.
 
 ## Verdicts

@@ -1,13 +1,29 @@
-schema_version: "1.0.0"
+schema_version: "1.1.0"
 platform_version: "0.2.0"
-preferred_formats: [d2, plantuml, graphviz]
-outputs: [svg, png]
+preferred_formats: [mermaid, graphviz, d2, plantuml]
+outputs: [svg, png, pdf]
+
+renderers:
+  mermaid:
+    executable: mmdc
+    package: "@mermaid-js/mermaid-cli"
+    preferred_version: "11.17.0"
+    canonical_source_extension: .mmd
+  graphviz:
+    executable: dot
+    preferred_version: "16.1.0"
+    canonical_source_extension: .dot
+
 policy:
   diagram_as_code_first: true
   generated_source_must_be_versionable: true
   renderer_must_be_local: true
+  rendered_svg_preferred_for_documents: true
+  source_and_render_must_be_preserved: true
   ai_image_generation_required: false
   no_mermaid_requirement: false
+
 security:
   shell_execution_requires_approval: true
+  control_plane_rendering_preferred: true
   remote_renderers_forbidden_by_default: true
