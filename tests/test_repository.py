@@ -22,6 +22,8 @@ def test_architecture_v2_defaults_to_local_only() -> None:
     web = load_contract("web_policy.yaml")
     project_schema = load_contract("project_schema_policy.yaml")
     budget = load_contract("budget_policy.yaml")
+    telemetry = load_contract("telemetry_policy.yaml")
+    orchestration = load_contract("orchestration_policy.yaml")
 
     assert routing["local_only"] is True
     assert catalog["policy"]["local_only"] is True
@@ -60,6 +62,21 @@ def test_architecture_v2_defaults_to_local_only() -> None:
     assert budget["runtime_routing_enabled"] is False
     assert budget["scope"] == "historical_v0_2_cloud_llm_ledger_compatibility"
 
+    compatibility = telemetry["compatibility"]
+    assert telemetry["local_only"] is True
+    assert "cloud_escalation" not in telemetry["fields"]["optional"]
+    assert "cloud_cost_eur" not in telemetry["fields"]["optional"]
+    assert compatibility["legacy_rows_may_be_read"] is True
+    assert compatibility["legacy_rows_must_never_enable_routing"] is True
+    assert compatibility["reject_legacy_fields_on_new_write"] is True
+    assert set(compatibility["legacy_v0_2_read_only_fields"]) == {
+        "cloud_escalation",
+        "cloud_cost_eur",
+    }
+
+    assert orchestration["engine"]["automatic_cloud_escalation"] is False
+    assert "cloud_escalation" not in orchestration["human_gates"]
+
 
 def test_active_operator_docs_use_windows_repository_identity() -> None:
     root = Path(__file__).resolve().parents[1]
@@ -78,6 +95,13 @@ def test_finops_doc_does_not_advertise_cloud_llm_execution() -> None:
     assert "LLM cloud                  : NON SUPPORTÉ" in text
     assert "OPENROUTER_API_KEY" not in text
     assert "ajouter `--execute`" not in text
+
+
+def test_telemetry_cli_does_not_expose_legacy_cloud_write_flags() -> None:
+    root = Path(__file__).resolve().parents[1]
+    text = (root / "scripts" / "34_record_telemetry.py").read_text(encoding="utf-8")
+    assert 'parser.add_argument("--cloud-escalation"' not in text
+    assert 'parser.add_argument("--cloud-cost-eur"' not in text
 
 
 def test_local_provider_is_loopback() -> None:
