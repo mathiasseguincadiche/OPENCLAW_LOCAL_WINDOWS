@@ -4,7 +4,6 @@ import importlib.util
 import pathlib
 import types
 
-
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "54_capture_ollama_request_roles.py"
 
