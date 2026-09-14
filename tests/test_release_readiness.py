@@ -85,7 +85,6 @@ def test_v1_rejects_wrong_target_version(tmp_path: Path) -> None:
 
 def test_v1_rejects_missing_or_invalid_evidence_hash(tmp_path: Path) -> None:
     payload = _approved_manifest()
-    payload["golden_projects_sha256"] = "not-a-hash"
     payload["qualification"]["golden_projects_sha256"] = "not-a-hash"
     _write_manifest(tmp_path, payload)
     with pytest.raises(ValueError, match="golden_projects_sha256"):
