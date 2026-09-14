@@ -19,6 +19,16 @@ Describe 'Ollama full-agent role capture diagnostic' {
         $Text | Should -Match ([regex]::Escape("'--thinking' 'off'"))
     }
 
+    It 'preflights Ollama separately and detects proxy readiness without traversing upstream' {
+        $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+        $DiagnosticScript = Join-Path $RepoRoot 'scripts\windows\26_diagnose_openclaw_ollama_roles.ps1'
+        $Text = Get-Content -Raw -LiteralPath $DiagnosticScript
+        $Text | Should -Match '\$OllamaTagsUri'
+        $Text | Should -Match 'Backend Ollama non prêt pour le diagnostic'
+        $Text | Should -Match 'ROLE_CAPTURE_READY='
+        $Text | Should -Not -Match 'Invoke-RestMethod[^\r\n]+\$ProxyUrl/api/tags'
+    }
+
     It 'captures request shape without persisting prompt text' {
         $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
         $ProxyScript = Join-Path $RepoRoot 'scripts\54_capture_ollama_request_roles.py'
