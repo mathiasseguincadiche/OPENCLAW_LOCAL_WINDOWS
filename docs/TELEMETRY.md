@@ -2,7 +2,7 @@
 
 ## Objectif
 
-La télémétrie de `OPENCLAW_LOCAL` sert à observer le comportement réel de la plateforme sans transformer les prompts, réponses ou documents privés en données de monitoring.
+La télémétrie de `OPENCLAW_LOCAL_WINDOWS` sert à observer le comportement réel de la plateforme sans transformer les prompts, réponses ou documents privés en données de monitoring.
 
 Architecture V2 n'utilise aucun modèle LLM cloud ; la télémétrie d'inférence reste donc attachée aux backends locaux.
 
@@ -20,7 +20,7 @@ Le challenger local `granite-devops -> granite4.2:8b-q4_K_M` possède ses propre
 
 Toute métrique portant sur une flotte retirée reste historique. Elle ne doit pas être agrégée comme si elle mesurait Architecture V2.
 
-## Données autorisées
+## Données autorisées pour les nouvelles écritures
 
 Selon disponibilité réelle du runtime :
 
@@ -38,11 +38,25 @@ Selon disponibilité réelle du runtime :
 - durée de chargement ;
 - tool calls ;
 - retries ;
-- transitions projet ;
+- transitions locales de profondeur ;
 - statut PASS/FAIL ;
 - utilisation d'un outil Web et provenance de la preuve lorsque la politique le prévoit, sans contenu privé.
 
 Une donnée non disponible reste `null`/absente. Elle n'est jamais estimée puis présentée comme observée.
+
+## Compatibilité des anciennes preuves V0.2
+
+Les anciens journaux peuvent contenir les champs historiques suivants :
+
+```text
+cloud_escalation
+cloud_cost_eur
+route_kind = cloud_escalation
+```
+
+Architecture V2 les traite comme **lecture seule**. `read_telemetry()` et `summarize_telemetry()` peuvent encore les relire afin de préserver l'audit d'anciennes preuves, mais `append_telemetry()`, la capture automatique et `scripts/34_record_telemetry.py` refusent toute nouvelle écriture de ces champs ou de cette route.
+
+Les résumés historiques utilisent des noms explicitement préfixés `legacy_`. Une ancienne ligne de télémétrie ne peut jamais réactiver une route LLM cloud, modifier le routage courant ni satisfaire un gate Architecture V2.
 
 ## Données interdites
 
