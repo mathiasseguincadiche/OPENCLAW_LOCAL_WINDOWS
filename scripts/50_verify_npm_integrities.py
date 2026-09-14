@@ -19,8 +19,7 @@ def _run(*args: str, cwd: Path | None = None) -> str:
         cwd=cwd,
         check=False,
         text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     if completed.returncode != 0:
         detail = completed.stderr.strip() or completed.stdout.strip()
