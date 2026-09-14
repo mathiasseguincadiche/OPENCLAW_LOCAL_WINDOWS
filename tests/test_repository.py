@@ -20,6 +20,8 @@ def test_architecture_v2_defaults_to_local_only() -> None:
     platform = load_contract("platform.yaml")
     escalation = load_contract("escalation_policy.yaml")
     web = load_contract("web_policy.yaml")
+    project_schema = load_contract("project_schema_policy.yaml")
+    budget = load_contract("budget_policy.yaml")
 
     assert routing["local_only"] is True
     assert catalog["policy"]["local_only"] is True
@@ -40,6 +42,23 @@ def test_architecture_v2_defaults_to_local_only() -> None:
     assert web["remote_source_escalation"]["llm_reasoning_must_remain_local"] is True
     assert web["remote_source_escalation"]["llm_cloud_escalation_forbidden"] is True
     assert "cloud_escalation" not in web
+
+    assert project_schema["llm_cloud_policy"] == {
+        "allowed": False,
+        "providers": [],
+        "fallback_allowed": False,
+        "reason": "architecture_v2_local_only",
+    }
+    assert "cloud_policy" not in project_schema
+    assert project_schema["external_service_policy"]["restricted"]["allowed"] is False
+    assert (
+        "external_service_requires_human_approval"
+        in project_schema["criticality_gates"]["critical"]
+    )
+
+    assert budget["llm_cloud_execution_supported"] is False
+    assert budget["runtime_routing_enabled"] is False
+    assert budget["scope"] == "historical_v0_2_cloud_llm_ledger_compatibility"
 
 
 def test_active_operator_docs_use_windows_repository_identity() -> None:
