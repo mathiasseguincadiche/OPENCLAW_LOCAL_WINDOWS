@@ -1,10 +1,15 @@
 [CmdletBinding()]
 param(
+    [switch]$DryRun,
     [switch]$Apply
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+if ($DryRun -and $Apply) {
+    throw 'Les options -DryRun et -Apply sont mutuellement exclusives.'
+}
 
 $Repository = 'mathiasseguincadiche/OPENCLAW_LOCAL_WINDOWS'
 $TargetDescription = 'Plateforme IA multi-agents local-only côté LLM pour Windows 11 : OpenClaw + Ollama, routage local hybride et qualification Intel Arc B580.'
@@ -62,7 +67,7 @@ if ($descriptionMatches -and $topicsMatch) {
     exit 0
 }
 
-if (-not $Apply) {
+if ($DryRun -or -not $Apply) {
     Write-Host 'GITHUB_METADATA=DRIFT_DETECTED'
     Write-Host 'DRY_RUN=true'
     Write-Host 'Relancer avec -Apply pour corriger la description et les topics.'
