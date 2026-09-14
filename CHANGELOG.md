@@ -5,6 +5,14 @@ Keep a Changelog et le versionnage suit SemVer.
 
 ## [Unreleased]
 
+### Fixed
+
+- supprime le fournisseur LLM cloud résiduel des contrats actifs Architecture V2 et rend l'escalade LLM cloud explicitement fail-closed ;
+- distingue l'escalade de sources Web distantes du raisonnement LLM, qui reste local ;
+- marque le contrat FinOps OpenRouter V0.2 comme compatibilité historique, sans route d'exécution LLM en V2 ;
+- remplace la preuve V1 obsolète de comparaison de backends par une preuve de stabilité du runtime Vulkan retenu ;
+- corrige les badges, URLs de clonage et références de gouvernance vers `OPENCLAW_LOCAL_WINDOWS`.
+
 ## [0.3.0] - 2026-09-14
 
 ### Added
