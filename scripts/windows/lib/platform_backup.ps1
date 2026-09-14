@@ -1,12 +1,17 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# Ces sous-arbres sont reconstructibles et ne constituent pas un état durable
-# à restaurer. state/npm est recréé par la convergence verrouillée des plugins.
-# state/plugin-skills est un index de junctions/symlinks entièrement généré par
-# OpenClaw à partir des métadonnées des plugins actifs.
+# OpenClaw 2026.9.4 classe ces sous-arbres du state comme ressources gérées et
+# reconstructibles dans sa propre politique de backup. plugin-skills est un
+# index de junctions/symlinks entièrement généré depuis les métadonnées des
+# plugins actifs. Ils ne constituent donc pas un état durable à restaurer.
 $script:OpenClawBackupExcludedRelativePaths = @(
+    'state/dev',
+    'state/git',
     'state/npm',
+    'state/npm-runtime',
+    'state/tmp',
+    'state/tools',
     'state/plugin-skills'
 )
 
