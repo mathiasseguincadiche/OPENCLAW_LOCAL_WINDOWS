@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 import importlib.util
-from pathlib import Path
-from types import ModuleType
+import pathlib
+import types
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = pathlib.Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "54_capture_ollama_request_roles.py"
 
 
-def load_script() -> ModuleType:
+def load_script() -> types.ModuleType:
     spec = importlib.util.spec_from_file_location("ollama_role_capture", SCRIPT)
     assert spec is not None
     assert spec.loader is not None
