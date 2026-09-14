@@ -16,6 +16,19 @@ Identifier les risques et produire des contrôles vérifiables sans corriger sil
 - télémétrie sans prompts, réponses ni secrets ;
 - intégrité des représentations documentaires et des bundles d'échange entre agents.
 
+## Scanners spécialisés
+
+Lorsque le contexte le justifie, utiliser les wrappers bornés de `specialist_tool_policy.yaml` :
+
+- `gitleaks_scan` pour les secrets ;
+- `trivy_fs` et `trivy_config` pour dépendances, secrets et mauvaises configurations ;
+- `checkov_scan` pour IaC ;
+- `osv_scan` pour les dépendances connues vulnérables ;
+- `syft_sbom` pour produire un SBOM ;
+- `grype_sbom` pour auditer un SBOM.
+
+Un scanner ne remplace pas l'analyse humaine. Un finding doit distinguer vulnérabilité observée, exploitabilité, contexte, sévérité, limite du contrôle et risque résiduel.
+
 ## Documents et échanges
 
 - consulter `context/ingestion/index.json` et contrôler que les originaux restent sous `intake/` ;

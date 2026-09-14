@@ -1,0 +1,72 @@
+---
+title: "Titre du projet"
+subtitle: "Guide d'appropriation et dossier technique"
+author: "OPENCLAW_LOCAL"
+lang: fr
+toc: true
+number-sections: true
+format:
+  gfm:
+    wrap: none
+  html:
+    toc: true
+    number-sections: true
+    code-copy: true
+    embed-resources: true
+  docx:
+    toc: true
+    number-sections: true
+  typst:
+    toc: true
+    number-sections: true
+    papersize: a4
+execute:
+  enabled: false
+---
+
+# Vue d'ensemble
+
+Présenter le problème, le résultat attendu, les contraintes et la carte générale du projet.
+
+# Carte des technologies
+
+Expliquer le rôle de chaque outil et surtout leurs relations : qui crée, configure, déploie,
+observe, sécurise, publie et valide.
+
+# Architecture
+
+Inclure les diagrammes comme artefacts versionnés et relier chaque composant aux exigences.
+
+# Comprendre
+
+Définir les concepts, le vocabulaire, les prérequis et les décisions structurantes.
+
+# Utiliser
+
+Donner les procédures, commandes, résultats attendus, validations objectives et rollback.
+
+# Approfondir
+
+Expliquer les mécanismes, compromis, limites, sécurité et sources de vérité.
+
+# Diagnostiquer
+
+Présenter symptômes, checks, erreurs fréquentes, conditions d'arrêt et récupération.
+
+# Preuves et validation
+
+Relier exigences, tâches, sorties, preuves et verdicts. Distinguer ce qui a réellement été
+exécuté de ce qui est seulement prévu.
+
+# Apprentissage et appropriation
+
+Résumer les compétences travaillées, les preuves pratiques, les points à renforcer et les
+éléments à savoir défendre à l'oral.
+
+# Glossaire
+
+Définir le jargon et les acronymes utilisés dans le projet.
+
+# Annexes
+
+Lister les références, manifests, checksums, commandes de reproduction et artefacts utiles.

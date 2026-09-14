@@ -23,6 +23,29 @@ LOCAL_IN_PROGRESS
 
 Chaque progression exige ses preuves réelles. Les contrôles locaux, la CI distante, le clone propre, le SHA publié et l'audit indépendant ne doivent jamais être supposés.
 
+## Compilation des artefacts documentaires
+
+Lorsqu'une tâche de publication dépend d'une source `.qmd` validée du Rédacteur, recopier d'abord cette source depuis le bundle de dépendance en lecture seule vers le périmètre `deliverables/<task-id>/` de la tâche Release en conservant sa provenance, puis utiliser la chaîne bornée `publication_render`. Elle produit à partir d'une source unique :
+
+- GitHub Markdown ;
+- HTML ;
+- DOCX ;
+- PDF via Typst ;
+- `publication_manifest.json` avec SHA-256.
+
+Les sources `.mmd` et `.dot` validées peuvent être rendues avec `mermaid_render_svg` et `graphviz_render_svg`. La source diagram-as-code doit être conservée avec le rendu.
+
+La publication documentaire ne donne jamais `exec` au Rédacteur : la compilation reste une responsabilité de packaging contrôlée.
+
+## Supply chain de release
+
+Lorsque pertinent, utiliser :
+
+- `syft_sbom` pour générer un SBOM ;
+- `grype_sbom` pour l'auditer.
+
+Le SBOM et les rapports de scan sont des preuves de release, pas une garantie absolue d'absence de vulnérabilité.
+
 ## Documents et artefacts
 
 - consulter `context/ingestion/index.json` lorsqu'une consigne documentaire conditionne le packaging ou la publication ;

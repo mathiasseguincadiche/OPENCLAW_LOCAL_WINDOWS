@@ -1,83 +1,238 @@
-schema_version: "1.3.0"
-platform_version: "0.2.0"
-
+schema_version: 1.3.0
+platform_version: 0.2.0
 security_defaults:
   profile: minimal
   fs_workspace_only: true
   exec_mode: ask
   elevated_enabled: false
   cloud_tools_without_explicit_escalation: false
-  document_tools: [pdf, view_image]
-
+  document_tools:
+  - pdf
+  - view_image
 write_enforcement:
-  protected_inputs: [intake, sources, context/exchange]
+  protected_inputs:
+  - intake
+  - sources
+  - context/exchange
   guard_manifest: .openclaw-local-input-guard.json
   fail_on_protected_input_change: true
   collect_scopes_are_enforced: true
   central_project_accepts_only_collected_task_outputs: true
-
 agents:
   chef-operations:
     profile: minimal
-    also_allow: [read, web_search, web_fetch, agents_list, sessions_list, sessions_history, sessions_search, sessions_send, sessions_spawn, subagents, session_status, pdf, view_image]
-    deny: [write, edit, apply_patch, exec, process]
-    collect_scopes: [work, evidence]
-
+    also_allow:
+    - read
+    - web_search
+    - web_fetch
+    - agents_list
+    - sessions_list
+    - sessions_history
+    - sessions_search
+    - sessions_send
+    - sessions_spawn
+    - subagents
+    - session_status
+    - pdf
+    - view_image
+    deny:
+    - write
+    - edit
+    - apply_patch
+    - exec
+    - process
+    specialist_tools: []
+    collect_scopes:
+    - work
+    - evidence
   expert-recherche:
     profile: minimal
-    also_allow: [read, web_search, web_fetch, browser, session_status, pdf, view_image]
-    deny: [write, edit, apply_patch, exec, process]
-    collect_scopes: [work, evidence]
-
+    also_allow:
+    - read
+    - web_search
+    - web_fetch
+    - browser
+    - session_status
+    - pdf
+    - view_image
+    deny:
+    - write
+    - edit
+    - apply_patch
+    - exec
+    - process
+    specialist_tools: []
+    collect_scopes:
+    - work
+    - evidence
   architecte-solutions:
     profile: minimal
-    also_allow: [read, web_search, web_fetch, session_status, pdf, view_image]
-    deny: [write, edit, apply_patch, exec, process]
+    also_allow:
+    - read
+    - web_search
+    - web_fetch
+    - session_status
+    - pdf
+    - view_image
+    deny:
+    - write
+    - edit
+    - apply_patch
+    - exec
+    - process
     artifact_writer: architecture_scoped
-    write_scope: [context/architecture, diagrams]
-    collect_scopes: [work, evidence, diagrams]
-
+    write_scope:
+    - context/architecture
+    - diagrams
+    specialist_tools:
+    - mermaid_render_svg
+    - graphviz_render_svg
+    collect_scopes:
+    - work
+    - evidence
+    - diagrams
   ingenieur-devops:
     profile: minimal
-    also_allow: [read, write, edit, apply_patch, exec, process, web_search, web_fetch, session_status, pdf, view_image]
+    also_allow:
+    - read
+    - write
+    - edit
+    - apply_patch
+    - exec
+    - process
+    - web_search
+    - web_fetch
+    - session_status
+    - pdf
+    - view_image
     deny: []
-    collect_scopes: [work, deliverables, evidence, diagrams]
-
+    specialist_tools:
+    - terraform_fmt_check
+    - terraform_validate
+    - ansible_lint
+    - docker_compose_validate
+    - shellcheck
+    - yamllint
+    collect_scopes:
+    - work
+    - deliverables
+    - evidence
+    - diagrams
   ingenieur-securite:
     profile: minimal
-    also_allow: [read, exec, process, web_search, web_fetch, session_status, pdf, view_image]
-    deny: [write, edit, apply_patch]
-    collect_scopes: [work, evidence]
-
+    also_allow:
+    - read
+    - exec
+    - process
+    - web_search
+    - web_fetch
+    - session_status
+    - pdf
+    - view_image
+    deny:
+    - write
+    - edit
+    - apply_patch
+    specialist_tools:
+    - gitleaks_scan
+    - trivy_fs
+    - trivy_config
+    - checkov_scan
+    - osv_scan
+    - syft_sbom
+    - grype_sbom
+    collect_scopes:
+    - work
+    - evidence
   ingenieur-release-forges:
     profile: minimal
-    also_allow: [read, write, edit, apply_patch, exec, process, web_search, web_fetch, session_status, pdf, view_image]
+    also_allow:
+    - read
+    - write
+    - edit
+    - apply_patch
+    - exec
+    - process
+    - web_search
+    - web_fetch
+    - session_status
+    - pdf
+    - view_image
     deny: []
-    collect_scopes: [work, deliverables, evidence]
-
+    specialist_tools:
+    - publication_render
+    - mermaid_render_svg
+    - graphviz_render_svg
+    - syft_sbom
+    - grype_sbom
+    collect_scopes:
+    - work
+    - deliverables
+    - evidence
   redacteur-technique:
     profile: minimal
-    also_allow: [read, write, edit, apply_patch, web_search, web_fetch, session_status, pdf, view_image]
-    deny: [exec, process]
-    collect_scopes: [work, deliverables, evidence, diagrams]
-
+    also_allow:
+    - read
+    - write
+    - edit
+    - apply_patch
+    - web_search
+    - web_fetch
+    - session_status
+    - pdf
+    - view_image
+    deny:
+    - exec
+    - process
+    specialist_tools:
+    - mermaid_render_svg
+    - graphviz_render_svg
+    - markdownlint
+    - lychee_check
+    collect_scopes:
+    - work
+    - deliverables
+    - evidence
+    - diagrams
   auditeur-qualite:
     profile: minimal
-    also_allow: [read, web_search, web_fetch, session_status, pdf, view_image]
-    deny: [write, edit, apply_patch, exec, process]
-    collect_scopes: [work, evidence]
-
+    also_allow:
+    - read
+    - web_search
+    - web_fetch
+    - session_status
+    - pdf
+    - view_image
+    deny:
+    - write
+    - edit
+    - apply_patch
+    - exec
+    - process
+    specialist_tools:
+    - markdownlint
+    - lychee_check
+    collect_scopes:
+    - work
+    - evidence
 notes:
-  - "Le profil minimal est la base fail-closed; chaque rôle réautorise uniquement ses capacités nécessaires."
-  - "Tool Search compacte les outils autorisés non essentiels derrière search/describe/call au lieu d'injecter tous les schémas dans le prompt."
-  - "Les huit rôles peuvent inspecter les PDF et images de leur workspace via pdf/view_image."
-  - "Seul expert-recherche reçoit browser par défaut pour les sites JS complexes."
-  - "Chef-operations conserve les outils de sessions nécessaires à la délégation multi-agent sans recevoir les primitives d'écriture ou d'exécution."
-  - "Les outils de fichiers et médias restent bornés au workspace de chaque agent."
-  - "Toute commande exec autorisée hors allowlist requiert une approbation humaine avec exec_mode=ask."
-  - "Le mode elevated reste désactivé."
-  - "Ingénieur sécurité audite et scanne mais ne modifie pas directement les sources."
-  - "Architecte produit ADR/schémas via un writer borné à context/architecture et diagrams."
-  - "Les rôles de revue ne peuvent pas modifier silencieusement le livrable audité."
-  - "Le Workspace Guard hash les entrées intake/sources/context/exchange avant l'exécution et bloque la collecte si elles ont été altérées."
-  - "collect_scopes est appliqué par le collecteur central : une sortie hors périmètre n'est jamais promue dans le projet central."
+- Le profil minimal est la base fail-closed; chaque rôle réautorise uniquement ses
+  capacités nécessaires.
+- Tool Search compacte les outils autorisés non essentiels derrière search/describe/call
+  au lieu d'injecter tous les schémas dans le prompt.
+- Les huit rôles peuvent inspecter les PDF et images de leur workspace via pdf/view_image.
+- Seul expert-recherche reçoit browser par défaut pour les sites JS complexes.
+- Chef-operations conserve les outils de sessions nécessaires à la délégation multi-agent
+  sans recevoir les primitives d'écriture ou d'exécution.
+- Les outils de fichiers et médias restent bornés au workspace de chaque agent.
+- Toute commande exec autorisée hors allowlist requiert une approbation humaine avec
+  exec_mode=ask.
+- Le mode elevated reste désactivé.
+- Ingénieur sécurité audite et scanne mais ne modifie pas directement les sources.
+- Architecte produit ADR/schémas via un writer borné à context/architecture et diagrams.
+- Architecte, Rédacteur et Auditeur conservent exec/process interdits; leurs renderers
+  spécialisés sont médiés par le control plane.
+- Le Workspace Guard hash les entrées intake/sources/context/exchange avant l'exécution
+  et bloque la collecte si elles ont été altérées.
+- 'collect_scopes est appliqué par le collecteur central : une sortie hors périmètre
+  n''est jamais promue dans le projet central.'

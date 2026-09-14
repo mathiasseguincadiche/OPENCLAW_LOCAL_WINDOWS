@@ -94,6 +94,30 @@
     "PSScriptAnalyzer": "1.25.0",
     "Pester": "5.9.0"
   },
+  "publication_toolchain": {
+    "quarto": {
+      "preferred": "1.10.18",
+      "source": "quarto.org",
+      "install_policy": "exact_preferred"
+    },
+    "typst": {
+      "preferred": "0.15.0",
+      "source": "typst.app",
+      "install_policy": "exact_preferred"
+    },
+    "mermaid_cli": {
+      "package": "@mermaid-js/mermaid-cli",
+      "preferred": "11.17.0",
+      "executable": "mmdc",
+      "install_policy": "exact_preferred"
+    },
+    "graphviz": {
+      "preferred": "16.1.0",
+      "executable": "dot",
+      "install_policy": "exact_preferred"
+    },
+    "hardware_tested": null
+  },
   "qualification": {
     "hardware_profile": "intel_arc_b580_12gb",
     "nominal_context_tokens": 8192,
