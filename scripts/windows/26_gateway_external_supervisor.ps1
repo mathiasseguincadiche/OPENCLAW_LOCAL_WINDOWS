@@ -12,10 +12,12 @@ $ErrorActionPreference = 'Stop'
 
 $TaskName = 'OPENCLAW_LOCAL Gateway'
 $RestartBackoffSeconds = 2
+$RequestedPlatformRoot = $PlatformRootOverride
+$RequestedStopTimeoutSeconds = $StopTimeoutSeconds
 
 function Get-PlatformRoot {
-    if (-not [string]::IsNullOrWhiteSpace($PlatformRootOverride)) {
-        return $PlatformRootOverride
+    if (-not [string]::IsNullOrWhiteSpace($RequestedPlatformRoot)) {
+        return $RequestedPlatformRoot
     }
     if ($env:OPENCLAW_LOCAL_ROOT) {
         return $env:OPENCLAW_LOCAL_ROOT
@@ -52,7 +54,7 @@ function Get-PowerShell7Command {
     throw 'PowerShell 7 (pwsh.exe) est requis pour le superviseur Gateway.'
 }
 
-function Set-ExternalGatewayEnvironment {
+function Initialize-ExternalGatewayEnvironment {
     param([Parameter(Mandatory)][string]$PlatformRoot)
 
     $StateDir = Join-Path $PlatformRoot 'state'
@@ -145,7 +147,7 @@ function Install-ExternalGatewaySupervisor {
     Write-Host "GATEWAY_SUPERVISOR_SCRIPT=$InstalledScript"
 }
 
-function Start-ExternalGatewaySupervisor {
+function Invoke-ExternalGatewaySupervisorStart {
     if (-not (Get-Command Get-ScheduledTask -ErrorAction SilentlyContinue)) {
         throw 'Get-ScheduledTask indisponible.'
     }
@@ -158,7 +160,7 @@ function Start-ExternalGatewaySupervisor {
     Write-Host "OK  Démarrage demandé au superviseur Gateway externe: $TaskName."
 }
 
-function Stop-ExternalGatewaySupervisor {
+function Invoke-ExternalGatewaySupervisorStop {
     $Task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
     if (-not $Task) {
         Write-Host "INFO Superviseur Gateway externe absent: $TaskName."
@@ -170,7 +172,7 @@ function Stop-ExternalGatewaySupervisor {
     }
 
     Stop-ScheduledTask -TaskName $TaskName -ErrorAction Stop
-    $Deadline = (Get-Date).AddSeconds($StopTimeoutSeconds)
+    $Deadline = (Get-Date).AddSeconds($RequestedStopTimeoutSeconds)
     do {
         Start-Sleep -Milliseconds 250
         $Task = Get-ScheduledTask -TaskName $TaskName -ErrorAction Stop
@@ -204,10 +206,10 @@ function Show-ExternalGatewaySupervisorStatus {
     } | ConvertTo-Json -Compress | Write-Host
 }
 
-function Run-ExternalGateway {
+function Invoke-ExternalGateway {
     param([Parameter(Mandatory)][string]$PlatformRoot)
 
-    Set-ExternalGatewayEnvironment -PlatformRoot $PlatformRoot
+    Initialize-ExternalGatewayEnvironment -PlatformRoot $PlatformRoot
     $StateDir = Join-Path $PlatformRoot 'state'
     $ConfigPath = Join-Path $StateDir 'openclaw.json'
     if (-not (Test-Path -LiteralPath $ConfigPath)) {
@@ -264,16 +266,16 @@ switch ($Action) {
         Install-ExternalGatewaySupervisor -PlatformRoot $PlatformRoot
     }
     'start' {
-        Start-ExternalGatewaySupervisor
+        Invoke-ExternalGatewaySupervisorStart
     }
     'stop' {
-        Stop-ExternalGatewaySupervisor
+        Invoke-ExternalGatewaySupervisorStop
     }
     'status' {
         Show-ExternalGatewaySupervisorStatus
     }
     'run' {
-        Run-ExternalGateway -PlatformRoot $PlatformRoot
+        Invoke-ExternalGateway -PlatformRoot $PlatformRoot
     }
 }
 
