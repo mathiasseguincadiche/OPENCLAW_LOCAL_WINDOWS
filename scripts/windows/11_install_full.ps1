@@ -17,6 +17,7 @@ $ConfigureOllama = Join-Path $PSScriptRoot '02_configure_local.ps1'
 $PullModels = Join-Path $PSScriptRoot '03_pull_models.ps1'
 $ConfigureOpenClaw = Join-Path $PSScriptRoot '08_configure_openclaw.ps1'
 $VerifyLocal = Join-Path $PSScriptRoot '04_verify_local.ps1'
+$GatewaySupervisor = Join-Path $PSScriptRoot '26_gateway_external_supervisor.ps1'
 $GatewayHealth = Join-Path $PSScriptRoot 'lib\gateway_health.ps1'
 $PlatformBackup = Join-Path $PSScriptRoot 'lib\platform_backup.ps1'
 $ReadOnlyGuard = Join-Path $PSScriptRoot 'lib\openclaw_readonly.ps1'
@@ -26,6 +27,9 @@ foreach ($Library in @($GatewayHealth, $PlatformBackup, $ReadOnlyGuard)) {
         throw "Bibliothèque d'installation introuvable: $Library"
     }
     . $Library
+}
+if (-not (Test-Path -LiteralPath $GatewaySupervisor)) {
+    throw "Superviseur Gateway externe introuvable: $GatewaySupervisor"
 }
 
 function Get-PlatformRoot {
@@ -63,7 +67,14 @@ if ($DryRun) {
     Write-Host '[DRY-RUN] Dans la fenêtre d écriture, exécuter openclaw doctor --fix --non-interactive avant configure-openclaw afin de migrer les états legacy supportés.'
     Invoke-ScriptChecked -Path $ConfigureOpenClaw -Parameters @{ DryRun = $true } -Description 'Dry-run OpenClaw'
     Write-Host '[DRY-RUN] Fenêtre contrôlée: process READONLY=0 uniquement pendant doctor/configure-openclaw; User reste READONLY=1.'
-    Write-Host '[DRY-RUN] Après configuration, process + User doivent être READONLY=1 avant Gateway install/start.'
+    Write-Host '[DRY-RUN] Après configuration, process + User doivent être READONLY=1 avant démarrage Gateway.'
+    if (-not $SkipGatewayService) {
+        Invoke-ScriptChecked -Path $GatewaySupervisor -Parameters @{
+            DryRun = $true
+            Action = 'install'
+            PlatformRootOverride = $PlatformRoot
+        } -Description 'Dry-run superviseur Gateway externe'
+    }
     Write-Host "[DRY-RUN] Readiness RPC bornée: timeout=${GatewayReadyTimeoutSeconds}s, intervalle=${GatewayPollIntervalMilliseconds}ms."
     Write-Host '[DRY-RUN] Aucune mutation réalisée.'
     exit 0
@@ -82,6 +93,14 @@ $OpenClaw = Get-OpenClawCommand $PlatformRoot
 $env:OPENCLAW_STATE_DIR = Join-Path $PlatformRoot 'state'
 $env:OLLAMA_API_KEY = 'ollama-local'
 $env:OPENCLAW_LOCAL_CLOUD_ENABLED = 'false'
+if (-not $SkipGatewayService) {
+    # OpenClaw 2026.9.4 refuse volontairement la gestion du service natif quand
+    # OPENCLAW_STATE_DIR est relocalisé hors du home du compte. OPENCLAW_LOCAL
+    # conserve son état sur le volume de plateforme et délègue donc le cycle de
+    # vie Gateway à son propre superviseur Windows explicite.
+    $env:OPENCLAW_SUPERVISOR_MODE = 'external'
+    $env:OPENCLAW_SERVICE_REPAIR_POLICY = 'external'
+}
 
 Invoke-OpenClawConfigWriteWindow -Operation {
     & $OpenClaw doctor --fix --non-interactive
@@ -96,12 +115,16 @@ Assert-OpenClawReadOnlySteadyState
 
 if (-not $SkipGatewayService) {
     Assert-OpenClawReadOnlySteadyState
-    & $OpenClaw gateway install --runtime node --force --json
-    if ($LASTEXITCODE -ne 0) { throw 'Installation du service Gateway OpenClaw en échec.' }
+    Invoke-ScriptChecked -Path $GatewaySupervisor -Parameters @{
+        Action = 'install'
+        PlatformRootOverride = $PlatformRoot
+    } -Description 'Installation du superviseur Gateway externe'
 
     Assert-OpenClawReadOnlySteadyState
-    & $OpenClaw gateway start --json
-    if ($LASTEXITCODE -ne 0) { throw 'Démarrage du service Gateway OpenClaw en échec.' }
+    Invoke-ScriptChecked -Path $GatewaySupervisor -Parameters @{
+        Action = 'start'
+        PlatformRootOverride = $PlatformRoot
+    } -Description 'Démarrage du superviseur Gateway externe'
 
     $Readiness = Wait-OpenClawGatewayReady -OpenClaw $OpenClaw -TimeoutSeconds $GatewayReadyTimeoutSeconds -PollIntervalMilliseconds $GatewayPollIntervalMilliseconds
     if (-not $Readiness.ready) {
@@ -117,6 +140,9 @@ Assert-OpenClawReadOnlySteadyState
 Write-Host 'OK  Installation complète OPENCLAW_LOCAL terminée.'
 Write-Host "Repo: $RepoRoot"
 if ($null -ne $BackupResult) { Write-Host "Backup vérifié: $($BackupResult.path)" }
+if (-not $SkipGatewayService) {
+    Write-Host 'Gateway: superviseur externe Windows (OPENCLAW_SUPERVISOR_MODE=external)'
+}
 Write-Host 'Config runtime: OPENCLAW_CONFIG_READONLY=1 (Process + User)'
 Write-Host 'Étape suivante: .\menu.ps1 -Action e2e puis .\menu.ps1 -Action qualification.'
 exit 0
