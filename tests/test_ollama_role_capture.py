@@ -56,3 +56,13 @@ def test_request_shape_keeps_roles_and_drops_prompt_text() -> None:
     assert "secret-system-text" not in serialized
     assert "secret-user-text" not in serialized
     assert "secret-description" not in serialized
+
+
+def test_response_content_type_is_reduced_to_safe_constants() -> None:
+    module = load_script()
+
+    assert module.safe_response_content_type("application/json; charset=utf-8") == "application/json"
+    assert module.safe_response_content_type("application/x-ndjson") == "application/x-ndjson"
+    assert module.safe_response_content_type("text/event-stream; charset=utf-8") == "text/event-stream"
+    assert module.safe_response_content_type("text/plain\r\nX-Injected: yes") == "application/octet-stream"
+    assert module.safe_response_content_type(None) == "application/octet-stream"
