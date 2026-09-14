@@ -9,6 +9,9 @@ BeforeAll {
     $script:InstallFull = Get-Content -Raw -LiteralPath (
         Join-Path $RepoRoot 'scripts\windows\11_install_full.ps1'
     )
+    $script:GatewaySupervisor = Get-Content -Raw -LiteralPath (
+        Join-Path $RepoRoot 'scripts\windows\26_gateway_external_supervisor.ps1'
+    )
 }
 
 Describe 'Contrat OpenClaw 2026.9.4' {
@@ -31,7 +34,7 @@ Describe 'Contrat OpenClaw 2026.9.4' {
         [string]$script:RuntimeLock.openclaw.plugins.parallel.provider | Should -Be 'parallel-free'
     }
 
-    It 'verrouille Node 26.1.0 compatible et répare le Gateway sur le runtime Node géré' {
+    It 'verrouille Node 26.1.0 compatible et supervise le Gateway relocalisé sans service natif' {
         [string]$script:RuntimeLock.node.preferred | Should -Be '26.1.0'
         [string]$script:RuntimeLock.node.sha256_win_x64_zip | Should -Be (
             '089a02c4c687451c9f0b7f1bfd252dae85a7ba27df0295a14096bdcc956fdc92'
@@ -39,9 +42,12 @@ Describe 'Contrat OpenClaw 2026.9.4' {
         $Node26 = @($script:RuntimeLock.node.supported | Where-Object { [int]$_.major -eq 26 })
         $Node26.Count | Should -Be 1
         [string]$Node26[0].minimum | Should -Be '26.1.0'
-        $script:InstallFull | Should -Match (
-            'gateway\s+install\s+--runtime\s+node\s+--force\s+--json'
-        )
+
+        $script:InstallFull | Should -Match '26_gateway_external_supervisor\.ps1'
+        $script:InstallFull | Should -Match ([regex]::Escape("`$env:OPENCLAW_SUPERVISOR_MODE = 'external'"))
+        $script:InstallFull | Should -Not -Match 'gateway\s+install\s+--runtime\s+node'
+        $script:GatewaySupervisor | Should -Match ([regex]::Escape("& `$OpenClaw 'gateway' 'run'"))
+        $script:GatewaySupervisor | Should -Match 'runtime\\npm-global\\openclaw\.cmd'
     }
 
     It 'affiche 2026.9.4 comme version verrouillée dans configure-openclaw DryRun' {

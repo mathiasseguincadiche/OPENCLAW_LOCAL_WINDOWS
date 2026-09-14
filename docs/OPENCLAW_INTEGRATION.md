@@ -46,7 +46,11 @@ openclaw --version
 Le projet exploite les comportements 2026.9.4 de façon conservatrice :
 
 - **Node.js 26.1.0 est le runtime préféré** du lock local : `openclaw@2026.9.4` exige `>=26.1.0` sur la branche Node 26 ; le ZIP Windows x64 est verrouillé par SHA-256 ;
-- `install-full` réexécute `openclaw gateway install --runtime node --force --json`, ce qui permet au service Gateway de se rattacher au runtime Node géré après une montée de version ;
+- l'état OpenClaw de la plateforme reste volontairement relocalisé sous `<OPENCLAW_LOCAL_ROOT>\state` au lieu du répertoire canonique sous le home du compte Windows ;
+- OpenClaw 2026.9.4 refuse volontairement `gateway install/start` pour un état/config non canonique. `OPENCLAW_LOCAL` n'essaie donc plus de détourner le service natif : `scripts/windows/26_gateway_external_supervisor.ps1` installe un **superviseur externe Windows Task Scheduler** qui exécute le runtime géré avec `openclaw gateway run` ;
+- le processus supervisé reçoit explicitement `OPENCLAW_SUPERVISOR_MODE=external`, `OPENCLAW_SERVICE_REPAIR_POLICY=external`, `OPENCLAW_STATE_DIR=<root>\state` et `OPENCLAW_CONFIG_PATH=<root>\state\openclaw.json` ;
+- le wrapper externe reste propriétaire du cycle de vie : il relance `gateway run` après une sortie avec backoff, tandis qu'une mise à niveau arrête d'abord l'instance existante avant de remplacer le script et la définition de tâche ;
+- `install-full` conserve ensuite la readiness RPC bornée et échoue avec diagnostic si le Gateway n'est pas réellement prêt ;
 - `openclaw@2026.9.4` et `@openclaw/parallel-plugin@2026.9.4` ont chacun un SRI SHA-512 exact dans le runtime lock ;
 - `scripts/50_verify_npm_integrities.py` refuse le core ou le plugin si `runtime lock`, `npm dist.integrity` et le SHA-512 recalculé du tarball ne sont pas strictement identiques ;
 - ce même contrôle est exécuté par la CI et par le job de validation du workflow de release avant construction/publication ;
@@ -62,9 +66,15 @@ Le projet exploite les comportements 2026.9.4 de façon conservatrice :
 3. baseline, convergence des plugins et patch OpenClaw s'exécutent dans cette fenêtre ;
 4. un bloc `finally` remet Process et User à `1` puis vérifie cet état ;
 5. toute impossibilité de restaurer/vérifier `1` provoque un échec ;
-6. `install-full` réexige l'état stable avant `gateway install`, avant `gateway start` et en fin d'installation.
+6. `install-full` réexige l'état stable avant l'installation du superviseur externe, avant son démarrage et en fin d'installation ; le Gateway supervisé lui-même reçoit `OPENCLAW_CONFIG_READONLY=1`.
 
 L'action opérateur `menu.ps1 -Action configure-openclaw` passe par `08_configure_openclaw_guarded.ps1`. `08_configure_openclaw.ps1` est le moteur interne de mutation et n'est pas l'entrée opérateur à appeler directement.
+
+### Admission full-agent sans faux positif de fallback
+
+Le gate nominal des trois familles est fail-closed sur le modèle réellement gagnant. Pour chaque agent de contrôle, le script lit `meta.agentMeta.provider/model`, exige qu'il corresponde exactement au primaire configuré et refuse toute trace de fallback (`executionTrace.fallbackUsed` ou `agentMeta.fallbackAttempts`). Une réponse réussie d'un modèle local de secours ne peut donc pas être comptabilisée comme réussite du primaire demandé.
+
+Le gate continue en parallèle d'exiger `systemPromptReport.skills.promptChars=0` et la réponse déterministe attendue.
 
 ## Flotte locale active V2
 
@@ -191,7 +201,7 @@ Le parcours :
 9. applique le patch uniquement si la validation réussit ;
 10. exécute `openclaw config validate --json` ;
 11. vérifie `openclaw agents list --json` ;
-12. sur `ollama-vulkan`, exécute un vrai prompt full-agent sur Qwen 3.5, Gemma 4 et Ministral 3 Reasoning avant PASS.
+12. sur `ollama-vulkan`, exécute un vrai prompt full-agent sur Qwen 3.5, Gemma 4 et Ministral 3 Reasoning avant PASS, sans accepter qu'un fallback local masque l'échec du primaire.
 
 Les listes gérées sont remplacées intentionnellement via :
 

@@ -25,7 +25,7 @@ Describe 'Admission prompt OpenClaw avant Gateway' {
         $script:Admission | Should -Not -Match ([regex]::Escape('2>&1'))
         $script:Admission | Should -Match ([regex]::Escape('1> $StdoutPath 2> $StderrPath'))
         $script:Admission | Should -Match ([regex]::Escape('$Payload = $StdoutText | ConvertFrom-Json'))
-        $script:Admission | Should -Match ([regex]::Escape("schema_version = '1.2.0'"))
+        $script:Admission | Should -Match ([regex]::Escape("schema_version = '1.3.0'"))
         $script:Admission | Should -Match ([regex]::Escape('stderr = $StderrText'))
         $script:Admission | Should -Match ([regex]::Escape('Remove-Item -LiteralPath $StdoutPath'))
         $script:Admission | Should -Match ([regex]::Escape('Remove-Item -LiteralPath $StderrPath'))
@@ -41,6 +41,17 @@ Describe 'Admission prompt OpenClaw avant Gateway' {
         $script:Admission | Should -Match ([regex]::Escape("`$ReportProperty = `$Meta.PSObject.Properties['systemPromptReport']"))
     }
 
+    It 'refuse tout fallback et exige le provider modèle effectivement gagnant' {
+        $script:Admission | Should -Match 'function Get-AgentRuntimeModel'
+        $script:Admission | Should -Match 'PROMPT_ADMISSION_REQUESTED_MODEL='
+        $script:Admission | Should -Match 'PROMPT_ADMISSION_EFFECTIVE_MODEL='
+        $script:Admission | Should -Match 'PROMPT_ADMISSION_FALLBACK_USED='
+        $script:Admission | Should -Match ([regex]::Escape("`$AgentMeta.PSObject.Properties['fallbackAttempts']"))
+        $script:Admission | Should -Match ([regex]::Escape("`$ExecutionTraceProperty.Value.PSObject.Properties['fallbackUsed']"))
+        $script:Admission | Should -Match 'fallback détecté'
+        $script:Admission | Should -Match 'modèle gagnant différent du primaire'
+    }
+
     It 'conserve la mesure runtime stricte du prompt skills à zéro' {
         $script:Admission | Should -Match 'PROMPT_ADMISSION_SKILLS_CHARS='
         $script:Admission | Should -Match 'systemPromptReport\.skills\.promptChars absent'
@@ -52,11 +63,13 @@ Describe 'Admission prompt OpenClaw avant Gateway' {
         $script:Configure | Should -Match "'chef-operations', 'architecte-solutions', 'ingenieur-devops'"
     }
 
-    It 'documente explicitement que le gate précède le démarrage Gateway dans install-full' {
+    It 'documente explicitement que le gate précède le superviseur Gateway externe dans install-full' {
         $ConfigureIndex = $script:InstallFull.IndexOf(
             'Invoke-ScriptChecked -Path $ConfigureOpenClaw -Description'
         )
-        $GatewayIndex = $script:InstallFull.IndexOf("gateway install --runtime node --force --json")
+        $GatewayIndex = $script:InstallFull.IndexOf(
+            "} -Description 'Installation du superviseur Gateway externe'"
+        )
         $ConfigureIndex | Should -BeGreaterOrEqual 0
         $GatewayIndex | Should -BeGreaterThan $ConfigureIndex
         $script:Admission | Should -Match 'précède le démarrage du Gateway'
