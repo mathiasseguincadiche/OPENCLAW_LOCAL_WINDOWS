@@ -23,8 +23,15 @@ Describe 'Gateway OpenClaw relocalisé sous superviseur externe' {
     It 'lance le Gateway avec le runtime géré et non avec le service natif OpenClaw' {
         $script:Supervisor | Should -Match ([regex]::Escape("& `$OpenClaw 'gateway' 'run'"))
         $script:Supervisor | Should -Match 'runtime\\npm-global\\openclaw\.cmd'
-        $script:Supervisor | Should -Not -Match 'gateway\s+install'
-        $script:Supervisor | Should -Not -Match 'gateway\s+start'
+        $script:Supervisor | Should -Not -Match ([regex]::Escape("& `$OpenClaw 'gateway' 'install'"))
+        $script:Supervisor | Should -Not -Match ([regex]::Escape("& `$OpenClaw 'gateway' 'start'"))
+    }
+
+    It 'garde la propriété du cycle de vie et relance après une sortie Gateway' {
+        $script:Supervisor | Should -Match ([regex]::Escape('while ($true)'))
+        $script:Supervisor | Should -Match 'RESTART_BACKOFF_SECONDS='
+        $script:Supervisor | Should -Match 'GATEWAY_CYCLE='
+        $script:Supervisor | Should -Match 'Start-Sleep -Seconds \$RestartBackoffSeconds'
     }
 
     It 'installe un Scheduled Task au logon avec reprise bornée' {
