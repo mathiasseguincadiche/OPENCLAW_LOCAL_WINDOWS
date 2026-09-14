@@ -15,7 +15,7 @@ $script:OpenClawBackupExcludedRelativePaths = @(
     'state/plugin-skills'
 )
 
-function Get-OpenClawBackupExcludedRelativePaths {
+function Get-OpenClawBackupExcludedPath {
     $Paths = [System.Collections.Generic.List[string]]::new()
     foreach ($Path in $script:OpenClawBackupExcludedRelativePaths) {
         $Paths.Add([string]$Path)
@@ -39,7 +39,7 @@ function Test-OpenClawBackupPathExcluded {
     param([Parameter(Mandatory)][string]$LogicalPath)
 
     $Normalized = ($LogicalPath -replace '\\', '/').Trim('/')
-    foreach ($Excluded in Get-OpenClawBackupExcludedRelativePaths) {
+    foreach ($Excluded in Get-OpenClawBackupExcludedPath) {
         $Needle = ([string]$Excluded).Trim('/')
         if (
             $Normalized.Equals($Needle, [StringComparison]::OrdinalIgnoreCase) -or
@@ -210,7 +210,7 @@ function New-OpenClawPreUpgradeBackup {
             throw 'Backup pré-upgrade rejeté: la vérification SHA256 de la copie a échoué.'
         }
 
-        $ExcludedRelativePaths = @(Get-OpenClawBackupExcludedRelativePaths)
+        $ExcludedRelativePaths = @(Get-OpenClawBackupExcludedPath)
         $Manifest = [ordered]@{
             schema_version = '1.2.0'
             kind = 'openclaw-local-pre-upgrade-backup'
