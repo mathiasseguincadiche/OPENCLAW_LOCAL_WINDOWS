@@ -15,11 +15,31 @@ $script:OpenClawBackupExcludedRelativePaths = @(
     'state/plugin-skills'
 )
 
+function Get-OpenClawBackupExcludedRelativePaths {
+    $Paths = [System.Collections.Generic.List[string]]::new()
+    foreach ($Path in $script:OpenClawBackupExcludedRelativePaths) {
+        $Paths.Add([string]$Path)
+    }
+
+    # menu.ps1 ouvre son transcript avant d'invoquer install-full. Ce fichier
+    # courant est donc volontairement mutable et verrouillé pendant le snapshot.
+    # Seul le chemin exact, généré par le menu sous proofs/logs, peut être exclu.
+    $ActiveTranscript = [string]$env:OPENCLAW_LOCAL_ACTIVE_TRANSCRIPT_RELATIVE
+    if ($ActiveTranscript) {
+        $Normalized = ($ActiveTranscript -replace '\\', '/').Trim('/')
+        if ($Normalized -match '^proofs/logs/[A-Za-z0-9._-]+\.log$') {
+            $Paths.Add($Normalized)
+        }
+    }
+
+    return @($Paths | Select-Object -Unique)
+}
+
 function Test-OpenClawBackupPathExcluded {
     param([Parameter(Mandatory)][string]$LogicalPath)
 
     $Normalized = ($LogicalPath -replace '\\', '/').Trim('/')
-    foreach ($Excluded in $script:OpenClawBackupExcludedRelativePaths) {
+    foreach ($Excluded in Get-OpenClawBackupExcludedRelativePaths) {
         $Needle = ([string]$Excluded).Trim('/')
         if (
             $Normalized.Equals($Needle, [StringComparison]::OrdinalIgnoreCase) -or
@@ -190,13 +210,14 @@ function New-OpenClawPreUpgradeBackup {
             throw 'Backup pré-upgrade rejeté: la vérification SHA256 de la copie a échoué.'
         }
 
+        $ExcludedRelativePaths = @(Get-OpenClawBackupExcludedRelativePaths)
         $Manifest = [ordered]@{
             schema_version = '1.2.0'
             kind = 'openclaw-local-pre-upgrade-backup'
             created_at_utc = (Get-Date).ToUniversalTime().ToString('o')
             source_root = $PlatformRoot
             included_roots = @($PresentNames)
-            excluded_paths = @($script:OpenClawBackupExcludedRelativePaths)
+            excluded_paths = $ExcludedRelativePaths
             verified = $true
             file_count = $BeforeEntries.Count
             files = @($BeforeEntries)
@@ -207,7 +228,7 @@ function New-OpenClawPreUpgradeBackup {
             -Value "verified_at_utc=$((Get-Date).ToUniversalTime().ToString('o'))" -Encoding utf8
 
         Write-Host "OK  Backup pré-upgrade vérifié: $BackupRoot"
-        Write-Host "INFO Backup exclut les artefacts reconstructibles: $($script:OpenClawBackupExcludedRelativePaths -join ', ')"
+        Write-Host "INFO Backup exclut les artefacts reconstructibles/volatils: $($ExcludedRelativePaths -join ', ')"
         Write-Host "OPENCLAW_PREUPGRADE_BACKUP=$BackupRoot"
         return [pscustomobject]@{
             path = $BackupRoot
