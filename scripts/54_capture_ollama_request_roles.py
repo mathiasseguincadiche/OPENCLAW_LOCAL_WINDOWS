@@ -10,17 +10,6 @@ import threading
 import typing
 import urllib.parse
 
-HOP_BY_HOP_HEADERS = {
-    "connection",
-    "keep-alive",
-    "proxy-authenticate",
-    "proxy-authorization",
-    "te",
-    "trailers",
-    "transfer-encoding",
-    "upgrade",
-}
-
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -49,6 +38,17 @@ def safe_len(value: typing.Any) -> int:
         return len(json.dumps(value, ensure_ascii=False, separators=(",", ":")))
     except (TypeError, ValueError):
         return 0
+
+
+def safe_response_content_type(value: str | None) -> str:
+    normalized = (value or "").strip().lower()
+    if normalized.startswith("application/x-ndjson"):
+        return "application/x-ndjson"
+    if normalized.startswith("application/json"):
+        return "application/json"
+    if normalized.startswith("text/event-stream"):
+        return "text/event-stream"
+    return "application/octet-stream"
 
 
 def request_shape(payload: typing.Any) -> dict[str, typing.Any]:
@@ -160,13 +160,9 @@ class ShapeProxyHandler(http.server.BaseHTTPRequestHandler):
         if self.upstream.path and self.upstream.path != "/":
             target_path = self.upstream.path.rstrip("/") + "/" + self.path.lstrip("/")
 
-        headers = {
-            key: value
-            for key, value in self.headers.items()
-            if key.lower() not in HOP_BY_HOP_HEADERS
-            and key.lower() not in {"host", "content-length"}
-        }
+        headers = {"Accept": "application/json, application/x-ndjson"}
         if request_body:
+            headers["Content-Type"] = "application/json"
             headers["Content-Length"] = str(len(request_body))
 
         if self.upstream.scheme == "https":
@@ -190,12 +186,9 @@ class ShapeProxyHandler(http.server.BaseHTTPRequestHandler):
                     record["response_error"] = error_text[:4000]
                 self._append_record(record)
 
-            self.send_response(response.status, response.reason)
-            for key, value in response.getheaders():
-                lowered = key.lower()
-                if lowered in HOP_BY_HOP_HEADERS or lowered == "content-length":
-                    continue
-                self.send_header(key, value)
+            response_content_type = safe_response_content_type(response.getheader("Content-Type"))
+            self.send_response(response.status)
+            self.send_header("Content-Type", response_content_type)
             self.send_header("Content-Length", str(len(response_body)))
             self.send_header("Connection", "close")
             self.end_headers()
@@ -208,7 +201,7 @@ class ShapeProxyHandler(http.server.BaseHTTPRequestHandler):
                 self._append_record(record)
             error_payload = {"error": f"diagnostic proxy failure: {exc}"}
             error_body = json.dumps(error_payload).encode("utf-8")
-            self.send_response(502, "Bad Gateway")
+            self.send_response(502)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(error_body)))
             self.send_header("Connection", "close")
