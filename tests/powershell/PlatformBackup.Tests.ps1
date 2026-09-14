@@ -27,7 +27,9 @@ Describe 'Backup pré-upgrade OPENCLAW_LOCAL' {
         $Manifest = Get-Content -Raw -LiteralPath $Result.manifest | ConvertFrom-Json
         [bool]$Manifest.verified | Should -BeTrue
         [int]$Manifest.file_count | Should -Be 3
+        [string]$Manifest.schema_version | Should -Be '1.1.0'
         @($Manifest.included_roots).Count | Should -Be 3
+        @($Manifest.excluded_paths) | Should -Contain 'state/npm'
         foreach ($Name in @('projects', 'state', 'proofs')) {
             @($Manifest.included_roots) | Should -Contain $Name
             $Original = Join-Path $Root "$Name\$Name.txt"
@@ -36,6 +38,43 @@ Describe 'Backup pré-upgrade OPENCLAW_LOCAL' {
             (Get-FileHash -Algorithm SHA256 -LiteralPath $Copy).Hash |
                 Should -Be (Get-FileHash -Algorithm SHA256 -LiteralPath $Original).Hash
         }
+    }
+
+    It 'exclut state/npm reconstructible même s il contient une junction npm' -Skip:(-not $IsWindows) {
+        $Root = Join-Path $TestDrive 'platform-with-npm-junction'
+        $State = Join-Path $Root 'state'
+        $NpmTree = Join-Path $State 'npm\projects\parallel\node_modules\@openclaw\parallel-plugin\node_modules'
+        New-Item -ItemType Directory -Path $NpmTree -Force | Out-Null
+        Set-Content -LiteralPath (Join-Path $State 'openclaw.json') -Value '{"ok":true}' -Encoding utf8
+
+        $Target = Join-Path $TestDrive 'junction-target'
+        New-Item -ItemType Directory -Path $Target -Force | Out-Null
+        Set-Content -LiteralPath (Join-Path $Target 'package.json') -Value '{"name":"openclaw"}' -Encoding utf8
+        $Junction = Join-Path $NpmTree 'openclaw'
+        New-Item -ItemType Junction -Path $Junction -Target $Target | Out-Null
+
+        $Result = New-OpenClawPreUpgradeBackup -PlatformRoot $Root
+
+        [bool]$Result.verified | Should -BeTrue
+        Test-Path -LiteralPath (Join-Path $Result.path 'state\openclaw.json') | Should -BeTrue
+        Test-Path -LiteralPath (Join-Path $Result.path 'state\npm') | Should -BeFalse
+        $Manifest = Get-Content -Raw -LiteralPath $Result.manifest | ConvertFrom-Json
+        @($Manifest.excluded_paths) | Should -Contain 'state/npm'
+        @($Manifest.files.path | Where-Object { $_ -like 'state/npm/*' }).Count | Should -Be 0
+    }
+
+    It 'refuse toujours un reparse point hors des chemins reconstructibles' -Skip:(-not $IsWindows) {
+        $Root = Join-Path $TestDrive 'platform-with-unexpected-junction'
+        $State = Join-Path $Root 'state'
+        New-Item -ItemType Directory -Path $State -Force | Out-Null
+
+        $Target = Join-Path $TestDrive 'unexpected-target'
+        New-Item -ItemType Directory -Path $Target -Force | Out-Null
+        Set-Content -LiteralPath (Join-Path $Target 'payload.txt') -Value 'outside' -Encoding utf8
+        New-Item -ItemType Junction -Path (Join-Path $State 'unexpected-link') -Target $Target | Out-Null
+
+        { New-OpenClawPreUpgradeBackup -PlatformRoot $Root } |
+            Should -Throw '*reparse point détecté*'
     }
 
     It 'autorise une première installation sans état existant' {
@@ -56,6 +95,7 @@ Describe 'Backup pré-upgrade OPENCLAW_LOCAL' {
         $BootstrapIndex | Should -BeGreaterThan -1
         $BackupIndex | Should -BeLessThan $BootstrapIndex
         $script:BackupLibraryText | Should -Match 'OPENCLAW_PREUPGRADE_BACKUP='
+        $script:BackupLibraryText | Should -Match 'state/npm'
         $Script | Should -Match 'Invoke-OpenClawConfigWriteWindow'
         $Script | Should -Match 'Assert-OpenClawReadOnlySteadyState'
     }
