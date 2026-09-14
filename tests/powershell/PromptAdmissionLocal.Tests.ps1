@@ -17,8 +17,8 @@ Describe 'Admission prompt OpenClaw avant Gateway' {
 
     It 'exécute l admission directement en mode local sans dépendre du Gateway' {
         $script:Admission | Should -Match ([regex]::Escape("& `$OpenClaw 'agent' '--local' '--agent'"))
-        $script:Admission | Should -Match 'PROMPT_ADMISSION_MODE=' 
-        $script:Admission | Should -Match "`$ExecutionMode = 'local'"
+        $script:Admission | Should -Match 'PROMPT_ADMISSION_MODE='
+        $script:Admission | Should -Match ([regex]::Escape("`$ExecutionMode = 'local'"))
     }
 
     It 'conserve le vrai gate trois familles dans configure-openclaw' {
