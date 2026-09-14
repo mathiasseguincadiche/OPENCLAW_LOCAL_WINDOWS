@@ -34,6 +34,17 @@ Describe 'Gateway OpenClaw relocalisé sous superviseur externe' {
         $script:Supervisor | Should -Match 'Start-Sleep -Seconds \$RestartBackoffSeconds'
     }
 
+    It 'arrête une instance existante avant de remplacer le superviseur installé' {
+        $ExistingIndex = $script:Supervisor.IndexOf(
+            '$ExistingTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue'
+        )
+        $StopIndex = $script:Supervisor.IndexOf('Invoke-ExternalGatewaySupervisorStop', $ExistingIndex)
+        $CopyIndex = $script:Supervisor.IndexOf('Copy-Item -LiteralPath $SourcePath', $ExistingIndex)
+        $ExistingIndex | Should -BeGreaterOrEqual 0
+        $StopIndex | Should -BeGreaterThan $ExistingIndex
+        $CopyIndex | Should -BeGreaterThan $StopIndex
+    }
+
     It 'installe un Scheduled Task au logon avec reprise bornée' {
         $script:Supervisor | Should -Match 'Register-ScheduledTask'
         $script:Supervisor | Should -Match 'New-ScheduledTaskTrigger -AtLogOn'
