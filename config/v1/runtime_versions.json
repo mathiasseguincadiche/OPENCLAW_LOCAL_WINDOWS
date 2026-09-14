@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "platform_version": "0.2.0",
+  "platform_version": "0.3.0",
   "windows": {
     "edition": "Windows 11 Pro",
     "architecture": "x64"

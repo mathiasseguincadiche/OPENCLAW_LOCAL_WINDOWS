@@ -1,6 +1,5 @@
 schema_version: "1.1.0"
-platform_version: "0.2.0"
-
+platform_version: "0.3.0"
 security:
   reject_root_symlinks: true
   reject_nested_symlinks: true

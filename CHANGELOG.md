@@ -5,8 +5,13 @@ Keep a Changelog et le versionnage suit SemVer.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-14
+
 ### Added
 
+- chaîne de publication documentaire premium bornée Markdown/HTML/DOCX/PDF via Quarto/Pandoc/Typst, avec diagrammes Mermaid/Graphviz versionnés ;
+- outillage métier spécialisé et traçable par agent, sans élargissement des privilèges génériques, avec gate CI dédié ;
+- préparation de release gouvernée permettant une demande explicite du propriétaire avant création du tag et publication.
 - Project Orchestrator fail-closed avec machine d'états explicite ;
 - analyse structurée, clarifications humaines, plan et assignation de tâches ;
 - exécution locale des tâches OpenClaw avec dépendances et tentatives bornées ;

@@ -1,5 +1,5 @@
 schema_version: "2.1.0"
-platform_version: "0.2.0"
+platform_version: "0.3.0"
 policy:
   local_first: true
   local_only: true

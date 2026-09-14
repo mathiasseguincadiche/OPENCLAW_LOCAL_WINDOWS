@@ -1,5 +1,5 @@
 schema_version: "1.1.0"
-platform_version: "0.2.0"
+platform_version: "0.3.0"
 enabled: true
 local_first: true
 source_root: intake

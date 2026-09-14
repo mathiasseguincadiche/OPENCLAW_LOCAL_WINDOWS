@@ -1,5 +1,5 @@
 schema_version: "1.0.0"
-platform_version: "0.2.0"
+platform_version: "0.3.0"
 roles:
   chef-operations:
     own: [cadrage, orchestration, planification, risques, verdict_global, project_intake]

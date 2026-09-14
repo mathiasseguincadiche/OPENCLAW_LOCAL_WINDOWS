@@ -1,5 +1,5 @@
 schema_version: "1.0.0"
-platform_version: "0.2.0"
+platform_version: "0.3.0"
 project_manifest_schema: "2.0.0"
 strict_unknown_fields: true
 owner_default: dirigeant-operateur

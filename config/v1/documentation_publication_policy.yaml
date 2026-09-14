@@ -1,5 +1,5 @@
 schema_version: "1.0.0"
-platform_version: "0.2.0"
+platform_version: "0.3.0"
 enabled: true
 
 canonical_source:

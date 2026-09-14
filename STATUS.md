@@ -2,7 +2,7 @@
 
 ## Version courante
 
-**0.2.0 — Architecture V2 local-only + Project Orchestrator + V7 Superset + Document Flow + flotte B580**
+**0.3.0 — Architecture V2 local-only + Project Orchestrator + V7 Superset + Document Flow + flotte B580**
 
 `OPENCLAW_LOCAL` est une plateforme multi-agent locale avec huit rôles spécialisés, projets, preuves, séparation producteur/auditeur, pédagogie, publication gouvernée et garde-fous fail-closed. **Aucun modèle LLM cloud n'est supporté en Architecture V2.** Les outils Web peuvent fournir des informations fraîches, mais l'analyse et le raisonnement restent exécutés par les modèles locaux.
 
