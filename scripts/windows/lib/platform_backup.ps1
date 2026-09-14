@@ -19,7 +19,7 @@ function Test-OpenClawBackupTreeSafe {
     return $true
 }
 
-function Get-OpenClawBackupManifestEntries {
+function Get-OpenClawBackupManifestEntry {
     param(
         [Parameter(Mandatory)][string]$Root,
         [Parameter(Mandatory)][string]$Prefix
@@ -41,7 +41,7 @@ function Get-OpenClawBackupManifestEntries {
 }
 
 function New-OpenClawPreUpgradeBackup {
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'Low')]
     param([Parameter(Mandatory)][string]$PlatformRoot)
 
     $SourceNames = @('projects', 'state', 'proofs')
@@ -61,7 +61,7 @@ function New-OpenClawPreUpgradeBackup {
     }
 
     $BeforeEntries = foreach ($Name in $PresentNames) {
-        Get-OpenClawBackupManifestEntries -Root (Join-Path $PlatformRoot $Name) -Prefix $Name
+        Get-OpenClawBackupManifestEntry -Root (Join-Path $PlatformRoot $Name) -Prefix $Name
     }
     $BeforeEntries = @($BeforeEntries | Sort-Object path)
 
@@ -69,6 +69,9 @@ function New-OpenClawPreUpgradeBackup {
     $BackupRoot = Join-Path $PlatformRoot "backup\pre-upgrade-$Stamp"
     if (Test-Path -LiteralPath $BackupRoot) {
         throw "Collision de chemin backup inattendue: $BackupRoot"
+    }
+    if (-not $PSCmdlet.ShouldProcess($BackupRoot, 'Créer un backup pré-upgrade vérifié')) {
+        throw 'Backup pré-upgrade requis: l opération ne peut pas être ignorée.'
     }
     New-Item -ItemType Directory -Path $BackupRoot -Force | Out-Null
 
@@ -80,12 +83,12 @@ function New-OpenClawPreUpgradeBackup {
         }
 
         $AfterEntries = foreach ($Name in $PresentNames) {
-            Get-OpenClawBackupManifestEntries -Root (Join-Path $PlatformRoot $Name) -Prefix $Name
+            Get-OpenClawBackupManifestEntry -Root (Join-Path $PlatformRoot $Name) -Prefix $Name
         }
         $AfterEntries = @($AfterEntries | Sort-Object path)
 
         $BackupEntries = foreach ($Name in $PresentNames) {
-            Get-OpenClawBackupManifestEntries -Root (Join-Path $BackupRoot $Name) -Prefix $Name
+            Get-OpenClawBackupManifestEntry -Root (Join-Path $BackupRoot $Name) -Prefix $Name
         }
         $BackupEntries = @($BackupEntries | Sort-Object path)
 
