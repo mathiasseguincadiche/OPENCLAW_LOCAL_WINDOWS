@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import argparse
-import datetime as dt
+import datetime
 import http.client
+import http.server
 import json
+import pathlib
 import threading
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
-from typing import Any
-from urllib.parse import urlsplit
+import typing
+import urllib.parse
 
 
 HOP_BY_HOP_HEADERS = {
@@ -38,10 +38,10 @@ def parse_args() -> argparse.Namespace:
 
 
 def utc_now() -> str:
-    return dt.datetime.now(dt.timezone.utc).isoformat()
+    return datetime.datetime.now(datetime.UTC).isoformat()
 
 
-def safe_len(value: Any) -> int:
+def safe_len(value: typing.Any) -> int:
     if isinstance(value, str):
         return len(value)
     if value is None:
@@ -52,13 +52,13 @@ def safe_len(value: Any) -> int:
         return 0
 
 
-def request_shape(payload: Any) -> dict[str, Any]:
+def request_shape(payload: typing.Any) -> dict[str, typing.Any]:
     if not isinstance(payload, dict):
         return {"json_object": False}
 
     raw_messages = payload.get("messages")
     messages = raw_messages if isinstance(raw_messages, list) else []
-    shapes: list[dict[str, Any]] = []
+    shapes: list[dict[str, typing.Any]] = []
     roles: list[str] = []
     for index, message in enumerate(messages):
         if not isinstance(message, dict):
@@ -94,7 +94,7 @@ def request_shape(payload: Any) -> dict[str, Any]:
             if isinstance(function, dict) and isinstance(function.get("name"), str):
                 tool_names.append(function["name"])
 
-    duplicate_non_tool_roles: list[dict[str, Any]] = []
+    duplicate_non_tool_roles: list[dict[str, typing.Any]] = []
     for index in range(1, len(roles)):
         current = roles[index]
         previous = roles[index - 1]
@@ -122,20 +122,20 @@ def request_shape(payload: Any) -> dict[str, Any]:
     }
 
 
-class ShapeProxyHandler(BaseHTTPRequestHandler):
+class ShapeProxyHandler(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
-    upstream = urlsplit("http://127.0.0.1:11434")
-    output_path = Path("ollama-role-capture.jsonl")
+    upstream = urllib.parse.urlsplit("http://127.0.0.1:11434")
+    output_path = pathlib.Path("ollama-role-capture.jsonl")
     output_lock = threading.Lock()
 
-    def log_message(self, _format: str, *_args: Any) -> None:
+    def log_message(self, _format: str, *_args: typing.Any) -> None:
         return
 
     def _read_body(self) -> bytes:
         length = int(self.headers.get("Content-Length", "0") or "0")
         return self.rfile.read(length) if length > 0 else b""
 
-    def _append_record(self, record: dict[str, Any]) -> None:
+    def _append_record(self, record: dict[str, typing.Any]) -> None:
         line = json.dumps(record, ensure_ascii=False, separators=(",", ":"))
         with self.output_lock:
             self.output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -144,7 +144,7 @@ class ShapeProxyHandler(BaseHTTPRequestHandler):
 
     def _proxy(self) -> None:
         request_body = self._read_body()
-        record: dict[str, Any] | None = None
+        record: dict[str, typing.Any] | None = None
         if self.path.startswith("/api/chat"):
             try:
                 payload = json.loads(request_body.decode("utf-8"))
@@ -226,13 +226,16 @@ class ShapeProxyHandler(BaseHTTPRequestHandler):
 
 def main() -> int:
     args = parse_args()
-    upstream = urlsplit(args.upstream)
+    upstream = urllib.parse.urlsplit(args.upstream)
     if upstream.scheme not in {"http", "https"} or not upstream.hostname:
         raise SystemExit(f"Upstream invalide: {args.upstream}")
 
     ShapeProxyHandler.upstream = upstream
-    ShapeProxyHandler.output_path = Path(args.output)
-    server = ThreadingHTTPServer((args.listen_host, args.listen_port), ShapeProxyHandler)
+    ShapeProxyHandler.output_path = pathlib.Path(args.output)
+    server = http.server.ThreadingHTTPServer(
+        (args.listen_host, args.listen_port),
+        ShapeProxyHandler,
+    )
     print(
         f"ROLE_CAPTURE_READY=http://{args.listen_host}:{args.listen_port} "
         f"upstream={args.upstream} output={args.output}",
