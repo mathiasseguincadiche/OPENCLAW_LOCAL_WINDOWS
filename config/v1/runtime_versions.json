@@ -36,11 +36,11 @@
       },
       {
         "major": 26,
-        "minimum": "26.0.0"
+        "minimum": "26.1.0"
       }
     ],
-    "preferred": "26.0.0",
-    "sha256_win_x64_zip": "d0418640a36096e00bddb57761aa0b1b98f91904ec4ed2b9dd75cbad723becd7"
+    "preferred": "26.1.0",
+    "sha256_win_x64_zip": "089a02c4c687451c9f0b7f1bfd252dae85a7ba27df0295a14096bdcc956fdc92"
   },
   "openclaw": {
     "package": "openclaw",
