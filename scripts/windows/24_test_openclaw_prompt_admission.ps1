@@ -274,7 +274,7 @@ $Agent = Get-AgentEntry -Config $Config -Id $AgentId
 $ModelRef = [string]$Agent.model.primary
 $SeparatorIndex = $ModelRef.IndexOf('/')
 if ($SeparatorIndex -le 0 -or $SeparatorIndex -ge ($ModelRef.Length - 1)) {
-    throw "Référence modèle primaire OpenClaw invalide pour $AgentId: $ModelRef"
+    throw "Référence modèle primaire OpenClaw invalide pour ${AgentId}: $ModelRef"
 }
 $ExpectedProvider = $ModelRef.Substring(0, $SeparatorIndex)
 $ExpectedModel = $ModelRef.Substring($SeparatorIndex + 1)
