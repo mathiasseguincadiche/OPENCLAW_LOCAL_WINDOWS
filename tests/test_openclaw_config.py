@@ -31,12 +31,12 @@ EXPECTED_VULKAN_MODELS = {
 OPENCLAW_AGENT_CONTEXT_TOKENS = 16384
 BENCHMARK_NOMINAL_CONTEXT_TOKENS = 8192
 
-PINNED_OPENCLAW_VERSION = "2026.9.2"
+PINNED_OPENCLAW_VERSION = "2026.9.4"
 PINNED_OPENCLAW_INTEGRITY = (
-    "sha512-M6C7UsnX815nv26qBJFYGe6aGzv+ftZLRzV6S9oRXUtXg2Yn67eVntpssT94kgkq"
-    "uKVSeUxerUg0j1ONp4WYQg=="
+    "sha512-lTQpEEe1Xm3u2PCHaPEr+vP8paGk1vLdHuzdItsNToaLI6hAqRVvgJYg+GxukJhETJp4t"
+    "Py/S1Gftl4KuB8n7A=="
 )
-PINNED_OPENCLAW_RELEASE_SHA = "3928bad9badfcb6c7d140530435e806fb8092190"
+PINNED_OPENCLAW_RELEASE_SHA = "3a9d69db306cd7f081e06254cb89c4bcc14a7107"
 PINNED_MODEL_KEYS = {
     "id",
     "name",
@@ -244,7 +244,7 @@ def test_patch_matches_pinned_openclaw_schema_surface() -> None:
     assert runtime_lock["openclaw"]["preferred"] == PINNED_OPENCLAW_VERSION
     assert runtime_lock["openclaw"]["integrity"] == PINNED_OPENCLAW_INTEGRITY
     assert runtime_lock["openclaw"]["release_sha"] == PINNED_OPENCLAW_RELEASE_SHA
-    assert runtime_lock["openclaw"]["plugins"]["parallel"]["preferred"] == "2026.9.2"
+    assert runtime_lock["openclaw"]["plugins"]["parallel"]["preferred"] == "2026.9.4"
 
     patch = build_openclaw_patch(Path("C:/OpenClawLocal"))
     agents = patch["agents"]

@@ -28,6 +28,10 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+      - name: Set up Node 26.1.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "26.1.0"
       - name: Install
         run: python -m pip install -e ".[dev]" build
       - name: Validate repository
@@ -48,8 +52,10 @@ jobs:
         run: python scripts/47_validate_pre_v1_hardening.py
       - name: Validate documentation portal
         run: python scripts/48_validate_documentation_portal.py
-      - name: Validate OpenClaw 2026.9.2 lock
+      - name: Validate OpenClaw 2026.9.4 lock
         run: python scripts/49_validate_openclaw_version.py
+      - name: Verify locked OpenClaw and Parallel npm artifacts
+        run: python scripts/50_verify_npm_integrities.py
       - name: Validate SemVer tag and V1 readiness
         run: python scripts/24_validate_release.py --tag "${GITHUB_REF_NAME}"
       - name: Ruff
@@ -89,8 +95,7 @@ jobs:
         run: |
           $targets = @('.\menu.ps1', '.\scripts\windows', '.\tests\powershell')
           $findings = foreach ($target in $targets) {
-            Invoke-ScriptAnalyzer -Path $target -Recurse `
-              -Settings '.\.github\powershell\PSScriptAnalyzerSettings.psd1'
+            Invoke-ScriptAnalyzer -Path $target -Recurse -Settings '.\.github\powershell\PSScriptAnalyzerSettings.psd1'
           }
           if ($findings) {
             $findings | Format-Table -AutoSize

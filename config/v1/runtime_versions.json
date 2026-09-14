@@ -36,21 +36,22 @@
       },
       {
         "major": 26,
-        "minimum": "26.0.0"
+        "minimum": "26.1.0"
       }
     ],
-    "preferred": "26.0.0",
-    "sha256_win_x64_zip": "d0418640a36096e00bddb57761aa0b1b98f91904ec4ed2b9dd75cbad723becd7"
+    "preferred": "26.1.0",
+    "sha256_win_x64_zip": "089a02c4c687451c9f0b7f1bfd252dae85a7ba27df0295a14096bdcc956fdc92"
   },
   "openclaw": {
     "package": "openclaw",
-    "preferred": "2026.9.2",
-    "integrity": "sha512-M6C7UsnX815nv26qBJFYGe6aGzv+ftZLRzV6S9oRXUtXg2Yn67eVntpssT94kgkquKVSeUxerUg0j1ONp4WYQg==",
-    "release_sha": "3928bad9badfcb6c7d140530435e806fb8092190",
+    "preferred": "2026.9.4",
+    "integrity": "sha512-lTQpEEe1Xm3u2PCHaPEr+vP8paGk1vLdHuzdItsNToaLI6hAqRVvgJYg+GxukJhETJp4tPy/S1Gftl4KuB8n7A==",
+    "release_sha": "3a9d69db306cd7f081e06254cb89c4bcc14a7107",
     "plugins": {
       "parallel": {
         "package": "@openclaw/parallel-plugin",
-        "preferred": "2026.9.2",
+        "preferred": "2026.9.4",
+        "integrity": "sha512-/6XIzmiF1iJtXzKYZxO+v92xTzOvTnSQJh89tTQfpZkyk5SxsaQtBAeBwFT7sv3blGIYhGEVhs3+hf4rKVIqtA==",
         "provider": "parallel-free"
       }
     },

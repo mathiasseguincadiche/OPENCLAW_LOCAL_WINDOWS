@@ -6,13 +6,22 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME_LOCK = ROOT / "config" / "v1" / "runtime_versions.json"
 
-EXPECTED_OPENCLAW_VERSION = "2026.9.2"
-EXPECTED_OPENCLAW_RELEASE_SHA = "3928bad9badfcb6c7d140530435e806fb8092190"
+EXPECTED_OPENCLAW_VERSION = "2026.9.4"
+EXPECTED_OPENCLAW_RELEASE_SHA = "3a9d69db306cd7f081e06254cb89c4bcc14a7107"
 EXPECTED_OPENCLAW_INTEGRITY = (
-    "sha512-M6C7UsnX815nv26qBJFYGe6aGzv+ftZLRzV6S9oRXUtXg2Yn67eVntpssT94kgkquKVSeUx"
-    "erUg0j1ONp4WYQg=="
+    "sha512-lTQpEEe1Xm3u2PCHaPEr+vP8paGk1vLdHuzdItsNToaLI6hAqRVvgJYg+GxukJhETJp4tPy/"
+    "S1Gftl4KuB8n7A=="
 )
 EXPECTED_PARALLEL_PACKAGE = "@openclaw/parallel-plugin"
+EXPECTED_PARALLEL_INTEGRITY = (
+    "sha512-/6XIzmiF1iJtXzKYZxO+v92xTzOvTnSQJh89tTQfpZkyk5SxsaQtBAeBwFT7sv3blGIYhGEVhs3+"
+    "hf4rKVIqtA=="
+)
+EXPECTED_NODE_VERSION = "26.1.0"
+EXPECTED_NODE_WIN_X64_SHA256 = (
+    "089a02c4c687451c9f0b7f1bfd252dae"
+    "85a7ba27df0295a14096bdcc956fdc92"
+)
 
 ACTIVE_ROOTS = (
     ROOT / "config",
@@ -27,16 +36,7 @@ ACTIVE_TOP_LEVEL = (
     ROOT / "menu.ps1",
     ROOT / "START_MENU.cmd",
 )
-TEXT_SUFFIXES = {
-    ".json",
-    ".yaml",
-    ".yml",
-    ".py",
-    ".ps1",
-    ".md",
-    ".toml",
-    ".cmd",
-}
+TEXT_SUFFIXES = {".json", ".yaml", ".yml", ".py", ".ps1", ".md", ".toml", ".cmd"}
 HISTORICAL_PARTS = {"adr", "adrs", "architecture_decisions"}
 
 
@@ -68,6 +68,32 @@ def _iter_active_text_files() -> list[Path]:
 def main() -> int:
     failures: list[str] = []
     runtime = _load_runtime_lock()
+
+    node = runtime.get("node")
+    if not isinstance(node, dict):
+        failures.append("runtime_versions.json: section node absente ou invalide")
+        node = {}
+    if node.get("preferred") != EXPECTED_NODE_VERSION:
+        failures.append(
+            f"Node: version verrouillée attendue={EXPECTED_NODE_VERSION}, "
+            f"reçue={node.get('preferred')}"
+        )
+    if node.get("sha256_win_x64_zip") != EXPECTED_NODE_WIN_X64_SHA256:
+        failures.append("Node: SHA-256 Windows x64 de 26.1.0 absent ou inattendu")
+    supported = node.get("supported")
+    node26 = None
+    if isinstance(supported, list):
+        node26 = next(
+            (
+                item
+                for item in supported
+                if isinstance(item, dict) and item.get("major") == 26
+            ),
+            None,
+        )
+    if not isinstance(node26, dict) or node26.get("minimum") != EXPECTED_NODE_VERSION:
+        failures.append("Node: minimum de la branche 26 doit être 26.1.0")
+
     openclaw = runtime.get("openclaw")
     if not isinstance(openclaw, dict):
         failures.append("runtime_versions.json: section openclaw absente ou invalide")
@@ -77,14 +103,14 @@ def main() -> int:
         failures.append("OpenClaw: package npm canonique attendu=openclaw")
     if openclaw.get("preferred") != EXPECTED_OPENCLAW_VERSION:
         failures.append(
-            "OpenClaw: version verrouillée attendue="
-            f"{EXPECTED_OPENCLAW_VERSION}, reçue={openclaw.get('preferred')}"
+            f"OpenClaw: version verrouillée attendue={EXPECTED_OPENCLAW_VERSION}, "
+            f"reçue={openclaw.get('preferred')}"
         )
     if openclaw.get("release_sha") != EXPECTED_OPENCLAW_RELEASE_SHA:
-        failures.append("OpenClaw: release_sha ne correspond pas à 2026.9.2")
+        failures.append("OpenClaw: release_sha ne correspond pas à 2026.9.4")
     if openclaw.get("integrity") != EXPECTED_OPENCLAW_INTEGRITY:
         failures.append(
-            "OpenClaw: npm SRI ne correspond pas à l'artefact 2026.9.2 verrouillé"
+            "OpenClaw: npm SRI ne correspond pas à l'artefact 2026.9.4 verrouillé"
         )
 
     plugins = openclaw.get("plugins")
@@ -102,8 +128,17 @@ def main() -> int:
             "OpenClaw: Parallel doit être aligné exactement sur "
             f"{EXPECTED_OPENCLAW_VERSION}"
         )
+    if parallel.get("integrity") != EXPECTED_PARALLEL_INTEGRITY:
+        failures.append(
+            "OpenClaw: SRI exact de @openclaw/parallel-plugin@2026.9.4 "
+            "absent ou inattendu"
+        )
 
-    stale_version = "2026.9." + "1"
+    verifier = ROOT / "scripts" / "50_verify_npm_integrities.py"
+    if not verifier.is_file():
+        failures.append("scripts/50_verify_npm_integrities.py absent")
+
+    stale_version = "2026.9." + "2"
     for path in _iter_active_text_files():
         text = path.read_text(encoding="utf-8", errors="replace")
         if stale_version in text:
@@ -122,21 +157,20 @@ def main() -> int:
         if not path.is_file():
             failures.append(f"contrat opérateur OpenClaw absent: {relative}")
             continue
-        text = path.read_text(encoding="utf-8")
-        if marker not in text:
+        if marker not in path.read_text(encoding="utf-8"):
             failures.append(
-                f"{relative}: doit dériver la version OpenClaw du runtime lock canonique"
+                f"{relative}: doit dériver la version OpenClaw du runtime lock "
+                "canonique"
             )
 
     integration_doc = ROOT / "docs" / "OPENCLAW_INTEGRATION.md"
     if not integration_doc.is_file():
         failures.append("docs/OPENCLAW_INTEGRATION.md absent")
-    else:
-        text = integration_doc.read_text(encoding="utf-8")
-        if EXPECTED_OPENCLAW_VERSION not in text:
-            failures.append(
-                "docs/OPENCLAW_INTEGRATION.md doit annoncer explicitement OpenClaw 2026.9.2"
-            )
+    elif EXPECTED_OPENCLAW_VERSION not in integration_doc.read_text(encoding="utf-8"):
+        failures.append(
+            "docs/OPENCLAW_INTEGRATION.md doit annoncer explicitement "
+            "OpenClaw 2026.9.4"
+        )
 
     if failures:
         for failure in failures:
@@ -145,10 +179,12 @@ def main() -> int:
         return 2
 
     print("OpenClaw Version Gate: CONFORME")
+    print(f"- Node verrouillé exactement: {EXPECTED_NODE_VERSION}")
     print(f"- OpenClaw verrouillé exactement: {EXPECTED_OPENCLAW_VERSION}")
     print(f"- release SHA: {EXPECTED_OPENCLAW_RELEASE_SHA}")
-    print("- npm SRI exact validé")
+    print("- npm SRI OpenClaw exact validé")
     print(f"- Parallel aligné exactement: {EXPECTED_OPENCLAW_VERSION}")
+    print("- npm SRI Parallel exact validé")
     print("- aucune référence active à la version OpenClaw obsolète détectée")
     print("- bootstrap/configuration/E2E dérivent tous du runtime lock canonique")
     return 0

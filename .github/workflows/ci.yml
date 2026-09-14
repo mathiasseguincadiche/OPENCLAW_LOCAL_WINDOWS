@@ -46,7 +46,7 @@ jobs:
         run: python scripts/47_validate_pre_v1_hardening.py
       - name: Documentation portal gate
         run: python scripts/48_validate_documentation_portal.py
-      - name: OpenClaw 2026.9.2 lock gate
+      - name: OpenClaw 2026.9.4 lock gate
         run: python scripts/49_validate_openclaw_version.py
       - name: Release contracts
         run: python scripts/24_validate_release.py
@@ -56,6 +56,37 @@ jobs:
         run: mypy src
       - name: Tests with coverage
         run: pytest -q --cov=clawlocal --cov-report=term-missing --cov-fail-under=75
+
+  openclaw-npm-smoke:
+    name: openclaw-npm-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12"
+      - name: Set up Node 26.1.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "26.1.0"
+      - name: Verify locked npm registry and tarball integrities
+        run: python scripts/50_verify_npm_integrities.py --artifact-dir artifacts/npm-smoke
+      - name: Install verified OpenClaw tarball and verify CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          CORE_VERSION="$(python -c 'import json; print(json.load(open("config/v1/runtime_versions.json"))["openclaw"]["preferred"])')"
+          CORE_TARBALL="$(find artifacts/npm-smoke -maxdepth 1 -type f -name "openclaw-${CORE_VERSION}.tgz" -print -quit)"
+          test -n "${CORE_TARBALL}"
+          TMP="$(mktemp -d)"
+          trap 'rm -rf "${TMP}"' EXIT
+          npm install --global --prefix "${TMP}/global" "${CORE_TARBALL}"
+          ACTUAL_VERSION="$("${TMP}/global/bin/openclaw" --version)"
+          echo "OPENCLAW_NPM_SMOKE_VERSION=${ACTUAL_VERSION}"
+          grep -F "${CORE_VERSION}" <<<"${ACTUAL_VERSION}" >/dev/null
 
   python-compatibility:
     name: python-${{ matrix.python-version }}
@@ -127,18 +158,9 @@ jobs:
           $allErrors = @()
           Get-ChildItem -Recurse -Filter *.ps1 | ForEach-Object {
             $parseErrors = $null
-            [void][System.Management.Automation.Language.Parser]::ParseFile(
-              $_.FullName,
-              [ref]$null,
-              [ref]$parseErrors
-            )
+            [void][System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$null, [ref]$parseErrors)
             foreach ($parseError in @($parseErrors)) {
-              $allErrors += [pscustomobject]@{
-                File = $_.FullName
-                ErrorId = $parseError.ErrorId
-                Message = $parseError.Message
-                Extent = $parseError.Extent.Text
-              }
+              $allErrors += [pscustomobject]@{ File = $_.FullName; ErrorId = $parseError.ErrorId; Message = $parseError.Message; Extent = $parseError.Extent.Text }
             }
           }
           if ($allErrors) {
@@ -150,8 +172,7 @@ jobs:
         run: |
           $targets = @('.\menu.ps1', '.\scripts\windows', '.\tests\powershell')
           $findings = foreach ($target in $targets) {
-            Invoke-ScriptAnalyzer -Path $target -Recurse `
-              -Settings '.\.github\powershell\PSScriptAnalyzerSettings.psd1'
+            Invoke-ScriptAnalyzer -Path $target -Recurse -Settings '.\.github\powershell\PSScriptAnalyzerSettings.psd1'
           }
           if ($findings) {
             $findings | Format-Table -AutoSize

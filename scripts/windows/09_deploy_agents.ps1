@@ -83,7 +83,7 @@ $RuntimeContract
 $RoleAgents
 "@
 
-    # OpenClaw 2026.9.2 injecte encore AGENTS.md et TOOLS.md. SOUL/USER/
+    # OpenClaw 2026.9.4 injecte encore AGENTS.md et TOOLS.md. SOUL/USER/
     # HEARTBEAT/IDENTITY restent matérialisés dans le workspace, mais le patch
     # géré les exclut explicitement de l'injection automatique pour économiser
     # le budget prompt. Les skill cards nominales sont également désactivées

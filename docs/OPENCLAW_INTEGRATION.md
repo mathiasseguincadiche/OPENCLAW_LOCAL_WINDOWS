@@ -22,13 +22,14 @@ Sur l'Intel Arc B580, **Vulkan est l'unique accélération GPU LLM supportée**.
 
 ## Runtime OpenClaw verrouillé
 
-Le lock V2 actuel fixe **OpenClaw 2026.9.2** avec le plugin Parallel officiel aligné sur **2026.9.2**. Le projet n'installe ni `main` ni une version flottante.
+Le lock V2 actuel fixe **OpenClaw 2026.9.4** avec le plugin Parallel officiel aligné sur **2026.9.4**. Le projet n'installe ni `main` ni une version flottante.
 
 ```text
-OpenClaw      : 2026.9.2
-release SHA   : 3928bad9badfcb6c7d140530435e806fb8092190
-npm SRI       : sha512-M6C7UsnX815nv26qBJFYGe6aGzv+ftZLRzV6S9oRXUtXg2Yn67eVntpssT94kgkquKVSeUxerUg0j1ONp4WYQg==
-Parallel      : @openclaw/parallel-plugin@2026.9.2
+OpenClaw      : 2026.9.4
+release SHA   : 3a9d69db306cd7f081e06254cb89c4bcc14a7107
+npm SRI       : sha512-lTQpEEe1Xm3u2PCHaPEr+vP8paGk1vLdHuzdItsNToaLI6hAqRVvgJYg+GxukJhETJp4tPy/S1Gftl4KuB8n7A==
+Parallel      : @openclaw/parallel-plugin@2026.9.4
+Parallel SRI  : sha512-/6XIzmiF1iJtXzKYZxO+v92xTzOvTnSQJh89tTQfpZkyk5SxsaQtBAeBwFT7sv3blGIYhGEVhs3+hf4rKVIqtA==
 ```
 
 Après une modification du lock runtime :
@@ -39,6 +40,31 @@ openclaw --version
 ```
 
 `configure-openclaw` vérifie la version verrouillée avant toute mutation.
+
+## Compatibilité spécifique OpenClaw 2026.9.4
+
+Le projet exploite les comportements 2026.9.4 de façon conservatrice :
+
+- **Node.js 26.1.0 est le runtime préféré** du lock local : `openclaw@2026.9.4` exige `>=26.1.0` sur la branche Node 26 ; le ZIP Windows x64 est verrouillé par SHA-256 ;
+- `install-full` réexécute `openclaw gateway install --runtime node --force --json`, ce qui permet au service Gateway de se rattacher au runtime Node géré après une montée de version ;
+- `openclaw@2026.9.4` et `@openclaw/parallel-plugin@2026.9.4` ont chacun un SRI SHA-512 exact dans le runtime lock ;
+- `scripts/50_verify_npm_integrities.py` refuse le core ou le plugin si `runtime lock`, `npm dist.integrity` et le SHA-512 recalculé du tarball ne sont pas strictement identiques ;
+- ce même contrôle est exécuté par la CI et par le job de validation du workflow de release avant construction/publication ;
+- le bootstrap continue de calculer localement le SHA-512 du tarball OpenClaw et refuse l'installation si le SRI ne correspond pas au lock ;
+- une montée de version sur un état existant doit être précédée d'une **sauvegarde vérifiée** : le rollback applicatif OpenClaw ne remplace pas la restauration des données lorsqu'une migration de données a eu lieu.
+
+### Fenêtre d'écriture `OPENCLAW_CONFIG_READONLY`
+
+`OPENCLAW_CONFIG_READONLY=1` est désormais l'état d'exploitation stable géré par le projet. La bibliothèque `scripts/windows/lib/openclaw_readonly.ps1` impose le contrat fail-closed suivant :
+
+1. avant configuration, les niveaux **Process** et **User** sont forcés puis vérifiés à `1` ;
+2. seule la variable du **Process courant** passe temporairement à `0` ; la valeur User persistante doit rester à `1` ;
+3. baseline, convergence des plugins et patch OpenClaw s'exécutent dans cette fenêtre ;
+4. un bloc `finally` remet Process et User à `1` puis vérifie cet état ;
+5. toute impossibilité de restaurer/vérifier `1` provoque un échec ;
+6. `install-full` réexige l'état stable avant `gateway install`, avant `gateway start` et en fin d'installation.
+
+L'action opérateur `menu.ps1 -Action configure-openclaw` passe par `08_configure_openclaw_guarded.ps1`. `08_configure_openclaw.ps1` est le moteur interne de mutation et n'est pas l'entrée opérateur à appeler directement.
 
 ## Flotte locale active V2
 

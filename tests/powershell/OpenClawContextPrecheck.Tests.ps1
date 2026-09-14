@@ -27,15 +27,15 @@ Describe 'Régression OpenClaw context precheck local' {
         )
     }
 
-    It 'verrouille OpenClaw 2026.9.2 et son artefact npm exact' {
-        [string]$script:Runtime.openclaw.preferred | Should -Be '2026.9.2'
+    It 'verrouille OpenClaw 2026.9.4 et son artefact npm exact' {
+        [string]$script:Runtime.openclaw.preferred | Should -Be '2026.9.4'
         [string]$script:Runtime.openclaw.integrity | Should -Be (
-            'sha512-M6C7UsnX815nv26qBJFYGe6aGzv+ftZLRzV6S9oRXUtXg2Yn67eVntpssT94kgkq' +
-            'uKVSeUxerUg0j1ONp4WYQg=='
+            'sha512-lTQpEEe1Xm3u2PCHaPEr+vP8paGk1vLdHuzdItsNToaLI6hAqRVvgJYg+GxukJhETJp4t' +
+            'Py/S1Gftl4KuB8n7A=='
         )
         [string]$script:Runtime.openclaw.release_sha |
-            Should -Be '3928bad9badfcb6c7d140530435e806fb8092190'
-        [string]$script:Runtime.openclaw.plugins.parallel.preferred | Should -Be '2026.9.2'
+            Should -Be '3a9d69db306cd7f081e06254cb89c4bcc14a7107'
+        [string]$script:Runtime.openclaw.plugins.parallel.preferred | Should -Be '2026.9.4'
     }
 
     It 'reste fail-closed sur la version runtime avant de muter OpenClaw' {
