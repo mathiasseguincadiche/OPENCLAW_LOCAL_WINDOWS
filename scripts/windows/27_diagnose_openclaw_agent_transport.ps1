@@ -64,7 +64,7 @@ function Get-AgentEntry {
     throw "Agent absent de la configuration OpenClaw: $Id"
 }
 
-function Set-ProcessEnvironmentValue {
+function Write-ProcessEnvironmentValue {
     param(
         [Parameter(Mandatory)][string]$Name,
         [AllowNull()][string]$Value
@@ -178,11 +178,11 @@ try {
         throw "Proxy de diagnostic non prêt. stderr=$ProxyError"
     }
 
-    Set-ProcessEnvironmentValue -Name 'OPENCLAW_CONFIG_PATH' -Value $TempConfigPath
-    Set-ProcessEnvironmentValue -Name 'OPENCLAW_STATE_DIR' -Value $StateDir
-    Set-ProcessEnvironmentValue -Name 'OLLAMA_API_KEY' -Value 'ollama-local'
-    Set-ProcessEnvironmentValue -Name 'OPENCLAW_LOCAL_CLOUD_ENABLED' -Value 'false'
-    Set-ProcessEnvironmentValue -Name 'OPENCLAW_CONFIG_READONLY' -Value '1'
+    Write-ProcessEnvironmentValue -Name 'OPENCLAW_CONFIG_PATH' -Value $TempConfigPath
+    Write-ProcessEnvironmentValue -Name 'OPENCLAW_STATE_DIR' -Value $StateDir
+    Write-ProcessEnvironmentValue -Name 'OLLAMA_API_KEY' -Value 'ollama-local'
+    Write-ProcessEnvironmentValue -Name 'OPENCLAW_LOCAL_CLOUD_ENABLED' -Value 'false'
+    Write-ProcessEnvironmentValue -Name 'OPENCLAW_CONFIG_READONLY' -Value '1'
 
     $ConfigFileRaw = (& $OpenClaw 'config' 'file' '--json' 2>&1 | Out-String).Trim()
     if ($LASTEXITCODE -ne 0) {
@@ -217,7 +217,7 @@ try {
 }
 finally {
     foreach ($Name in $OriginalEnv.Keys) {
-        Set-ProcessEnvironmentValue -Name $Name -Value $OriginalEnv[$Name]
+        Write-ProcessEnvironmentValue -Name $Name -Value $OriginalEnv[$Name]
     }
     if ($ProxyProcess -and -not $ProxyProcess.HasExited) {
         Stop-Process -Id $ProxyProcess.Id -Force -ErrorAction SilentlyContinue
