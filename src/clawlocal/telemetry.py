@@ -28,7 +28,6 @@ _NUMERIC_NONNEGATIVE = {
     "ram_mb",
     "tool_calls",
     "retries",
-    "cloud_cost_eur",
 }
 _FORBIDDEN_KEYS = {
     "prompt",
@@ -39,6 +38,11 @@ _FORBIDDEN_KEYS = {
     "api_key",
     "token_value",
 }
+_LEGACY_READ_ONLY_KEYS = {
+    "cloud_escalation",
+    "cloud_cost_eur",
+}
+_LEGACY_READ_ONLY_ROUTE_KINDS = {"cloud_escalation"}
 
 
 def _now() -> str:
@@ -63,6 +67,13 @@ def _validate_measurement(payload: dict[str, Any]) -> None:
         raise ValueError(
             "champs sensibles interdits en télémétrie: " + ", ".join(forbidden)
         )
+    legacy = sorted(_LEGACY_READ_ONLY_KEYS & set(payload))
+    if legacy:
+        raise ValueError(
+            "champs de télémétrie legacy en lecture seule: " + ", ".join(legacy)
+        )
+    if str(payload.get("route_kind", "")) in _LEGACY_READ_ONLY_ROUTE_KINDS:
+        raise ValueError("route_kind legacy cloud interdit pour une nouvelle mesure")
     for key in _NUMERIC_NONNEGATIVE:
         value = payload.get(key)
         if value is None:
@@ -71,8 +82,6 @@ def _validate_measurement(payload: dict[str, Any]) -> None:
             raise ValueError(f"métrique numérique invalide: {key}")
         if value < 0:
             raise ValueError(f"métrique négative interdite: {key}")
-    if payload.get("route_kind") == "cloud_escalation":
-        payload["cloud_escalation"] = True
 
 
 def append_telemetry(project: Path, measurement: dict[str, Any]) -> Path:
@@ -165,7 +174,6 @@ def automatic_run_telemetry(
             "duration_ms": (time.perf_counter() - started) * 1000.0,
             "success": success,
             "local_to_deep_transition": route_kind == "local_deep",
-            "cloud_escalation": route_kind == "cloud_escalation",
             **observed,
         }
         if error_class:
@@ -198,20 +206,31 @@ def summarize_telemetry(project: Path) -> dict[str, Any]:
         for row in rows
         if row.get("generated_tokens") is not None
     ]
-    cloud_costs = [
+    legacy_cloud_costs = [
         float(row["cloud_cost_eur"])
         for row in rows
         if row.get("cloud_cost_eur") is not None
     ]
+    legacy_cloud_escalations = sum(
+        1
+        for row in rows
+        if row.get("cloud_escalation") is True
+        or row.get("route_kind") == "cloud_escalation"
+    )
+    legacy_rows = sum(
+        1
+        for row in rows
+        if bool(_LEGACY_READ_ONLY_KEYS & set(row))
+        or row.get("route_kind") in _LEGACY_READ_ONLY_ROUTE_KINDS
+    )
     return {
         "runs": len(rows),
         "duration_ms_total": sum(durations),
         "generated_tokens_total": sum(generated),
-        "cloud_cost_eur_total": round(sum(cloud_costs), 6),
-        "cloud_escalations": sum(
-            1 for row in rows if row.get("cloud_escalation") is True
-        ),
         "local_to_deep_transitions": sum(
             1 for row in rows if row.get("local_to_deep_transition") is True
         ),
+        "legacy_rows": legacy_rows,
+        "legacy_cloud_cost_eur_total": round(sum(legacy_cloud_costs), 6),
+        "legacy_cloud_escalations": legacy_cloud_escalations,
     }
