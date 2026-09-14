@@ -11,6 +11,7 @@ $ErrorActionPreference = 'Stop'
 if ($DryRun) {
     Write-Host '[DRY-RUN] Contrôle d admission du prompt full-agent OpenClaw.'
     Write-Host "[DRY-RUN] Agent=$AgentId timeout=${TimeoutSeconds}s."
+    Write-Host '[DRY-RUN] Exécuter explicitement via openclaw agent --local: ce gate précède le démarrage du Gateway dans install-full.'
     Write-Host '[DRY-RUN] Exiger skills.limits.maxSkillsPromptChars=0 et agents.defaults.skills vide.'
     Write-Host '[DRY-RUN] Utiliser une session fraîche, thinking=off et une réponse déterministe.'
     Write-Host '[DRY-RUN] Exiger PROMPT_ADMISSION_SKILLS_CHARS=0 et refuser toute meta.error, dont context_overflow.'
@@ -211,17 +212,23 @@ $EvidencePath = Join-Path $ProofsRoot "openclaw_prompt_admission_$Stamp.json"
 $SessionKey = "configure-admission-$Stamp-$AgentId"
 $Expected = "PROMPT_ADMISSION_OK $AgentId"
 $Prompt = "N'utilise aucun outil. Réponds immédiatement en une ligne avec exactement: $Expected"
+$ExecutionMode = 'local'
 
-Write-Host "ADMISSION  Agent=$AgentId modèle=$ModelRef timeout=${TimeoutSeconds}s"
-$Output = & $OpenClaw 'agent' '--agent' $AgentId `
+Write-Host "ADMISSION  Agent=$AgentId modèle=$ModelRef timeout=${TimeoutSeconds}s mode=$ExecutionMode"
+Write-Host "PROMPT_ADMISSION_MODE=$ExecutionMode"
+# Ce gate est exécuté par configure-openclaw avant install/start du Gateway dans
+# install-full. --local évite donc une dépendance circulaire tout en exécutant
+# réellement le même agent, sa configuration, son prompt système et son modèle.
+$Output = & $OpenClaw 'agent' '--local' '--agent' $AgentId `
     '--session-key' $SessionKey '--message' $Prompt '--thinking' 'off' `
     '--timeout' ([string]$TimeoutSeconds) '--json' 2>&1
 $ExitCode = $LASTEXITCODE
 $Text = ($Output | Out-String).Trim()
 if ($ExitCode -ne 0) {
     [ordered]@{
-        schema_version = '1.0.0'
+        schema_version = '1.1.0'
         timestamp_utc = [DateTime]::UtcNow.ToString('o')
+        execution_mode = $ExecutionMode
         agent = $AgentId
         model_ref = $ModelRef
         exit_code = $ExitCode
