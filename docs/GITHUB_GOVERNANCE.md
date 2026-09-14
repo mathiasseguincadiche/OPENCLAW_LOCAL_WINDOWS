@@ -1,6 +1,6 @@
 # Gouvernance GitHub
 
-Ce document fixe les réglages GitHub attendus pour `mathiasseguincadiche/OPENCLAW_LOCAL`. Les contrats présents dans le dépôt sont automatisés par CI ; les réglages administratifs GitHub doivent rester cohérents avec cette politique.
+Ce document fixe les réglages GitHub attendus pour `mathiasseguincadiche/OPENCLAW_LOCAL_WINDOWS`. Les contrats présents dans le dépôt sont automatisés par CI ; les réglages administratifs GitHub doivent rester cohérents avec cette politique.
 
 ## Métadonnées du dépôt
 
@@ -155,7 +155,7 @@ Pour autoriser une V1, le manifeste doit cibler exactement `VERSION` et contenir
 - SHA-256 de l'identité exacte des modèles ;
 - SHA-256 du résultat de qualification automatique HARD-40M ;
 - SHA-256 de la preuve OpenClaw E2E ;
-- SHA-256 de la comparaison des backends ;
+- SHA-256 de la preuve de stabilité du runtime Vulkan retenu, incluant redémarrage/récupération lorsque pertinent ;
 - SHA-256 des golden projects ;
 - SHA-256 de la preuve multimodale ;
 - SHA-256 de la télémétrie réelle ;
