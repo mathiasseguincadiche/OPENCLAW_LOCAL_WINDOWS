@@ -35,7 +35,7 @@ def _approved_manifest(version: str = "1.0.0") -> dict:
             "model_identity_sha256": HASH,
             "automated_qualification_sha256": HASH,
             "openclaw_e2e_sha256": HASH,
-            "backend_comparison_sha256": HASH,
+            "vulkan_runtime_stability_sha256": HASH,
             "golden_projects_sha256": HASH,
             "multimodal_evidence_sha256": HASH,
             "telemetry_evidence_sha256": HASH,
@@ -85,9 +85,18 @@ def test_v1_rejects_wrong_target_version(tmp_path: Path) -> None:
 
 def test_v1_rejects_missing_or_invalid_evidence_hash(tmp_path: Path) -> None:
     payload = _approved_manifest()
+    payload["golden_projects_sha256"] = "not-a-hash"
     payload["qualification"]["golden_projects_sha256"] = "not-a-hash"
     _write_manifest(tmp_path, payload)
     with pytest.raises(ValueError, match="golden_projects_sha256"):
+        validate_v1_release_readiness(tmp_path, "1.0.0")
+
+
+def test_v1_rejects_missing_vulkan_runtime_stability_evidence(tmp_path: Path) -> None:
+    payload = _approved_manifest()
+    payload["qualification"]["vulkan_runtime_stability_sha256"] = ""
+    _write_manifest(tmp_path, payload)
+    with pytest.raises(ValueError, match="vulkan_runtime_stability_sha256"):
         validate_v1_release_readiness(tmp_path, "1.0.0")
 
 
