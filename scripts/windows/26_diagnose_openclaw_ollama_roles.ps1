@@ -105,16 +105,29 @@ $OriginalBaseUrl = [string]$OllamaProvider.Value.baseUrl
 if ($OriginalBaseUrl -notmatch '^http://127\.0\.0\.1:11434/?$') {
     throw "Base URL Ollama inattendue pour ce diagnostic: $OriginalBaseUrl"
 }
+$OllamaTagsUri = "$($OriginalBaseUrl.TrimEnd('/'))/api/tags"
 
 $ProxyUrl = "http://127.0.0.1:$ProxyPort"
 if ($DryRun) {
     Write-Host '[DRY-RUN] Diagnostic non destructif de la séquence de rôles OpenClaw -> Ollama.'
     Write-Host "[DRY-RUN] Agent=$AgentId modèle=$ModelRef timeout=${TimeoutSeconds}s."
+    Write-Host "[DRY-RUN] Vérifier d'abord que le backend Ollama répond sur $OllamaTagsUri."
     Write-Host "[DRY-RUN] Créer une copie temporaire de $ConfigPath avec models.providers.ollama.baseUrl=$ProxyUrl."
     Write-Host '[DRY-RUN] Sélectionner cette copie via OPENCLAW_CONFIG_PATH; ne jamais réécrire openclaw.json.'
     Write-Host '[DRY-RUN] Le proxy journalise uniquement rôles, tailles, noms d outils et paramètres de forme; aucun texte de prompt.'
     Write-Host '[DRY-RUN] Exécuter le même openclaw agent --local que le gate d admission, avec une session fraîche.'
     exit 0
+}
+
+try {
+    $null = Invoke-RestMethod -Method Get -Uri $OllamaTagsUri -TimeoutSec 3
+    Write-Host "OK  Backend Ollama prêt pour le diagnostic: $OllamaTagsUri"
+}
+catch {
+    throw (
+        "Backend Ollama non prêt pour le diagnostic sur $OllamaTagsUri : {0}. " +
+        "Exécutez .\menu.ps1 -Action configure-local puis relancez ce diagnostic."
+    ) -f $_.Exception.Message
 }
 
 if (Get-NetTCPConnection -State Listen -LocalPort $ProxyPort -ErrorAction SilentlyContinue) {
@@ -159,25 +172,26 @@ try {
         -RedirectStandardOutput $ProxyStdoutPath -RedirectStandardError $ProxyStderrPath
 
     $Ready = $false
+    $ProxyOutput = ''
     $Deadline = [DateTime]::UtcNow.AddSeconds(15)
     while ([DateTime]::UtcNow -lt $Deadline) {
         if ($ProxyProcess.HasExited) {
             break
         }
-        try {
-            $null = Invoke-RestMethod -Method Get -Uri "$ProxyUrl/api/tags" -TimeoutSec 2
-            $Ready = $true
-            break
+        if (Test-Path -LiteralPath $ProxyStdoutPath) {
+            $ProxyOutput = Get-Content -Raw -LiteralPath $ProxyStdoutPath -ErrorAction SilentlyContinue
+            if ($ProxyOutput -match 'ROLE_CAPTURE_READY=') {
+                $Ready = $true
+                break
+            }
         }
-        catch {
-            Start-Sleep -Milliseconds 250
-        }
+        Start-Sleep -Milliseconds 250
     }
     if (-not $Ready) {
         $ProxyError = if (Test-Path -LiteralPath $ProxyStderrPath) {
             Get-Content -Raw -LiteralPath $ProxyStderrPath
         } else { '' }
-        throw "Proxy de diagnostic non prêt. stderr=$ProxyError"
+        throw "Proxy de diagnostic non prêt. stdout=$ProxyOutput stderr=$ProxyError"
     }
 
     Set-ProcessEnvValue -Name 'OPENCLAW_CONFIG_PATH' -Value $TempConfigPath
