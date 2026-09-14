@@ -56,6 +56,7 @@ Describe 'Backup pré-upgrade OPENCLAW_LOCAL' {
         $BootstrapIndex | Should -BeGreaterThan -1
         $BackupIndex | Should -BeLessThan $BootstrapIndex
         $script:BackupLibraryText | Should -Match 'OPENCLAW_PREUPGRADE_BACKUP='
-        $Script | Should -Match 'OPENCLAW_CONFIG_READONLY = ''1'''
+        $Script | Should -Match 'Invoke-OpenClawConfigWriteWindow'
+        $Script | Should -Match 'Assert-OpenClawReadOnlySteadyState'
     }
 }
