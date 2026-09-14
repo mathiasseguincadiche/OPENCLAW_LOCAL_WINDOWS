@@ -60,8 +60,9 @@ if ($DryRun) {
     Invoke-ScriptChecked -Path $Bootstrap -Parameters @{ DryRun = $true; AllowRuntimeDrift = $AllowRuntimeDrift } -Description 'Dry-run bootstrap'
     Invoke-ScriptChecked -Path $ConfigureOllama -Parameters @{ DryRun = $true } -Description 'Dry-run Ollama'
     Invoke-ScriptChecked -Path $PullModels -Parameters @{ DryRun = $true } -Description 'Dry-run modèles'
+    Write-Host '[DRY-RUN] Dans la fenêtre d écriture, exécuter openclaw doctor --fix --non-interactive avant configure-openclaw afin de migrer les états legacy supportés.'
     Invoke-ScriptChecked -Path $ConfigureOpenClaw -Parameters @{ DryRun = $true } -Description 'Dry-run OpenClaw'
-    Write-Host '[DRY-RUN] Fenêtre contrôlée: process READONLY=0 uniquement pendant configure-openclaw; User reste READONLY=1.'
+    Write-Host '[DRY-RUN] Fenêtre contrôlée: process READONLY=0 uniquement pendant doctor/configure-openclaw; User reste READONLY=1.'
     Write-Host '[DRY-RUN] Après configuration, process + User doivent être READONLY=1 avant Gateway install/start.'
     Write-Host "[DRY-RUN] Readiness RPC bornée: timeout=${GatewayReadyTimeoutSeconds}s, intervalle=${GatewayPollIntervalMilliseconds}ms."
     Write-Host '[DRY-RUN] Aucune mutation réalisée.'
@@ -77,15 +78,21 @@ Invoke-ScriptChecked -Path $Bootstrap -Parameters @{ AllowRuntimeDrift = $AllowR
 Invoke-ScriptChecked -Path $ConfigureOllama -Description 'Configuration Ollama'
 Invoke-ScriptChecked -Path $PullModels -Description 'Téléchargement des modèles'
 
-Invoke-OpenClawConfigWriteWindow -Operation {
-    Invoke-ScriptChecked -Path $ConfigureOpenClaw -Description 'Configuration OpenClaw'
-}
-Assert-OpenClawReadOnlySteadyState
-
 $OpenClaw = Get-OpenClawCommand $PlatformRoot
 $env:OPENCLAW_STATE_DIR = Join-Path $PlatformRoot 'state'
 $env:OLLAMA_API_KEY = 'ollama-local'
 $env:OPENCLAW_LOCAL_CLOUD_ENABLED = 'false'
+
+Invoke-OpenClawConfigWriteWindow -Operation {
+    & $OpenClaw doctor --fix --non-interactive
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Migration OpenClaw doctor --fix --non-interactive en échec.'
+    }
+    Write-Host 'OK  Migrations OpenClaw supportées convergées via doctor --fix --non-interactive.'
+
+    Invoke-ScriptChecked -Path $ConfigureOpenClaw -Description 'Configuration OpenClaw'
+}
+Assert-OpenClawReadOnlySteadyState
 
 if (-not $SkipGatewayService) {
     Assert-OpenClawReadOnlySteadyState
