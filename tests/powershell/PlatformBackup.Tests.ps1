@@ -167,7 +167,8 @@ Describe 'Backup pré-upgrade OPENCLAW_LOCAL' {
             'state/tools',
             'state/plugin-skills'
         )) {
-            $script:BackupLibraryText | Should -Match [regex]::Escape($Expected)
+            $ExpectedRegex = [regex]::Escape($Expected)
+            $script:BackupLibraryText | Should -Match $ExpectedRegex
         }
         $Script | Should -Match 'Invoke-OpenClawConfigWriteWindow'
         $Script | Should -Match 'Assert-OpenClawReadOnlySteadyState'
