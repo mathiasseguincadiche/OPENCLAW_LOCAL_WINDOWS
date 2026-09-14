@@ -1,4 +1,4 @@
-schema_version: "1.1.0"
+schema_version: "1.2.0"
 platform_version: "0.3.0"
 default_enabled: true
 local_only: true
@@ -30,10 +30,18 @@ fields:
     - tool_calls
     - retries
     - local_to_deep_transition
-    - cloud_escalation
-    - cloud_cost_eur
     - success
     - error_class
+
+compatibility:
+  legacy_rows_may_be_read: true
+  legacy_rows_must_never_enable_routing: true
+  legacy_v0_2_read_only_fields:
+    - cloud_escalation
+    - cloud_cost_eur
+  legacy_route_kinds_read_only:
+    - cloud_escalation
+  reject_legacy_fields_on_new_write: true
 
 privacy:
   record_prompts: false

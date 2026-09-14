@@ -105,5 +105,4 @@ human_gates:
   blocking_clarifications: true
   destructive_actions: true
   remote_publication: true
-  cloud_escalation: true
   final_completion: true

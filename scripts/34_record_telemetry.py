@@ -39,8 +39,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--tool-calls", type=int)
     parser.add_argument("--retries", type=int)
     parser.add_argument("--local-to-deep-transition", action="store_true")
-    parser.add_argument("--cloud-escalation", action="store_true")
-    parser.add_argument("--cloud-cost-eur", type=float)
     parser.add_argument("--success", action="store_true")
     parser.add_argument("--error-class")
     return parser.parse_args()
@@ -76,8 +74,6 @@ def main() -> int:
         "tool_calls": args.tool_calls,
         "retries": args.retries,
         "local_to_deep_transition": args.local_to_deep_transition,
-        "cloud_escalation": args.cloud_escalation,
-        "cloud_cost_eur": args.cloud_cost_eur,
         "success": args.success,
         "error_class": args.error_class,
     }
