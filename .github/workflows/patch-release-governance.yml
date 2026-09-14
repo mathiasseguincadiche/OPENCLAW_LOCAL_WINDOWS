@@ -1,0 +1,56 @@
+name: Patch Release Governance
+
+on:
+  push:
+    branches:
+      - release/v0.3.0
+    paths:
+      - .github/workflows/patch-release-governance.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: release/v0.3.0
+      - name: Document owner-approved release request
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('docs/GITHUB_GOVERNANCE.md')
+          text = path.read_text(encoding='utf-8')
+          needle = '''Exemple :
+
+```text
+VERSION = 0.1.0
+Tag     = v0.1.0
+```
+'''
+          replacement = needle + '''
+Deux chemins gouvernés sont autorisés :
+
+1. **tag explicite** `v<VERSION>` poussé sur un commit déjà présent dans `main` ;
+2. **demande de release du propriétaire** via une issue dont le titre est exactement `Release v<VERSION>`.
+
+La seconde voie matérialise le gate humain `create_or_publish_release`. Le workflow fige le SHA courant de `main`, exécute exactement les mêmes validations Linux/Windows et ne crée le tag qu'après leur succès. Le tag est créé sur ce SHA validé, n'est jamais déplacé s'il existe déjà, puis la GitHub Release est publiée avec les artefacts, SBOM, checksums et attestations. Une issue ouverte par un autre acteur, ou avec un titre différent, ne peut pas autoriser une release.
+'''
+          if needle not in text:
+              raise SystemExit('ancre Releases introuvable dans GITHUB_GOVERNANCE.md')
+          if 'demande de release du propriétaire' in text:
+              raise SystemExit('gouvernance release déjà documentée')
+          path.write_text(text.replace(needle, replacement, 1), encoding='utf-8')
+      - name: Remove temporary workflow and commit
+        shell: bash
+        run: |
+          rm .github/workflows/patch-release-governance.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "docs: document owner-approved release requests"
+          git push origin HEAD:release/v0.3.0
