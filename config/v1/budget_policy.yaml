@@ -1,5 +1,8 @@
-schema_version: "1.0.0"
+schema_version: "1.1.0"
 platform_version: "0.3.0"
+scope: historical_v0_2_cloud_llm_ledger_compatibility
+llm_cloud_execution_supported: false
+runtime_routing_enabled: false
 currency: EUR
 cloud_enabled_by_default: false
 limits:
