@@ -13,6 +13,7 @@ if ($DryRun) {
     Write-Host "[DRY-RUN] Agent=$AgentId timeout=${TimeoutSeconds}s."
     Write-Host '[DRY-RUN] Exécuter explicitement via openclaw agent --local: ce gate précède le démarrage du Gateway dans install-full.'
     Write-Host '[DRY-RUN] Séparer stdout JSON de stderr diagnostic avant tout ConvertFrom-Json.'
+    Write-Host '[DRY-RUN] Lire meta au niveau racine de l enveloppe JSON locale OpenClaw 2026.9.4, avec fallback result.meta pour compatibilité.'
     Write-Host '[DRY-RUN] Exiger skills.limits.maxSkillsPromptChars=0 et agents.defaults.skills vide.'
     Write-Host '[DRY-RUN] Utiliser une session fraîche, thinking=off et une réponse déterministe.'
     Write-Host '[DRY-RUN] Exiger PROMPT_ADMISSION_SKILLS_CHARS=0 et refuser toute meta.error, dont context_overflow.'
@@ -104,24 +105,51 @@ function Assert-ZeroSkillPromptConfig {
     Write-Host "PROMPT_ADMISSION_CONFIG_DEFAULT_SKILLS=$DefaultSkillsCount"
 }
 
-function Get-VisibleText {
+function Get-AgentMeta {
     param([Parameter(Mandatory)]$Payload)
+
+    # OpenClaw 2026.9.4 projette le résultat de `agent --local --json` comme
+    # { payloads, meta } au niveau racine. Le chemin result.meta reste accepté
+    # uniquement pour compatibilité avec l enveloppe Gateway/historique.
+    $RootMeta = $Payload.PSObject.Properties['meta']
+    if ($RootMeta -and $RootMeta.Value) {
+        return $RootMeta.Value
+    }
 
     $Result = $Payload.PSObject.Properties['result']
     if ($Result -and $Result.Value) {
-        $Meta = $Result.Value.PSObject.Properties['meta']
-        if ($Meta -and $Meta.Value) {
-            $Visible = $Meta.Value.PSObject.Properties['finalAssistantVisibleText']
-            if ($Visible -and -not [string]::IsNullOrWhiteSpace([string]$Visible.Value)) {
-                return [string]$Visible.Value
-            }
+        $NestedMeta = $Result.Value.PSObject.Properties['meta']
+        if ($NestedMeta -and $NestedMeta.Value) {
+            return $NestedMeta.Value
         }
     }
+
+    return $null
+}
+
+function Get-VisibleText {
+    param([Parameter(Mandatory)]$Payload)
+
+    $Meta = Get-AgentMeta -Payload $Payload
+    if ($Meta) {
+        $Visible = $Meta.PSObject.Properties['finalAssistantVisibleText']
+        if ($Visible -and -not [string]::IsNullOrWhiteSpace([string]$Visible.Value)) {
+            return [string]$Visible.Value
+        }
+    }
+
     $Final = $Payload.PSObject.Properties['final']
     if ($Final -and -not [string]::IsNullOrWhiteSpace([string]$Final.Value)) {
         return [string]$Final.Value
     }
+
     $Payloads = $Payload.PSObject.Properties['payloads']
+    if (-not $Payloads -or -not $Payloads.Value) {
+        $Result = $Payload.PSObject.Properties['result']
+        if ($Result -and $Result.Value) {
+            $Payloads = $Result.Value.PSObject.Properties['payloads']
+        }
+    }
     if ($Payloads) {
         $Texts = @(
             $Payloads.Value | ForEach-Object {
@@ -141,15 +169,11 @@ function Get-VisibleText {
 function Write-PromptBudgetSummary {
     param([Parameter(Mandatory)]$Payload)
 
-    $Result = $Payload.PSObject.Properties['result']
-    if (-not $Result -or -not $Result.Value) {
+    $Meta = Get-AgentMeta -Payload $Payload
+    if (-not $Meta) {
         return
     }
-    $Meta = $Result.Value.PSObject.Properties['meta']
-    if (-not $Meta -or -not $Meta.Value) {
-        return
-    }
-    $ReportProperty = $Meta.Value.PSObject.Properties['systemPromptReport']
+    $ReportProperty = $Meta.PSObject.Properties['systemPromptReport']
     if (-not $ReportProperty -or -not $ReportProperty.Value) {
         return
     }
@@ -282,6 +306,10 @@ catch {
 
 $Payload | ConvertTo-Json -Depth 50 | Set-Content -LiteralPath $EvidencePath -Encoding utf8
 Write-Host "PROMPT_ADMISSION_EVIDENCE=$EvidencePath"
+$Meta = Get-AgentMeta -Payload $Payload
+if (-not $Meta) {
+    throw "Contrôle d admission OpenClaw sans métadonnées agent. preuve=$EvidencePath"
+}
 $SkillPromptChars = Write-PromptBudgetSummary -Payload $Payload
 if ($null -eq $SkillPromptChars) {
     throw "Contrat prompt skills OpenClaw non mesurable: systemPromptReport.skills.promptChars absent. preuve=$EvidencePath"
@@ -290,15 +318,7 @@ if ([int]$SkillPromptChars -ne 0) {
     throw "Contrat prompt skills OpenClaw non respecté: skillsPromptChars=$SkillPromptChars attendu=0. preuve=$EvidencePath"
 }
 
-$Result = $Payload.PSObject.Properties['result']
-if (-not $Result -or -not $Result.Value) {
-    throw 'Contrôle d admission OpenClaw sans résultat agent.'
-}
-$Meta = $Result.Value.PSObject.Properties['meta']
-if (-not $Meta -or -not $Meta.Value) {
-    throw 'Contrôle d admission OpenClaw sans métadonnées agent.'
-}
-$ErrorProperty = $Meta.Value.PSObject.Properties['error']
+$ErrorProperty = $Meta.PSObject.Properties['error']
 if ($ErrorProperty -and $ErrorProperty.Value) {
     $KindProperty = $ErrorProperty.Value.PSObject.Properties['kind']
     $MessageProperty = $ErrorProperty.Value.PSObject.Properties['message']

@@ -31,6 +31,22 @@ Describe 'Admission prompt OpenClaw avant Gateway' {
         $script:Admission | Should -Match ([regex]::Escape('Remove-Item -LiteralPath $StderrPath'))
     }
 
+    It 'lit meta à la racine de l enveloppe locale OpenClaw 2026.9.4 avant le fallback result.meta' {
+        $script:Admission | Should -Match 'function Get-AgentMeta'
+        $RootMetaIndex = $script:Admission.IndexOf("`$RootMeta = `$Payload.PSObject.Properties['meta']")
+        $NestedMetaIndex = $script:Admission.IndexOf("`$NestedMeta = `$Result.Value.PSObject.Properties['meta']")
+        $RootMetaIndex | Should -BeGreaterOrEqual 0
+        $NestedMetaIndex | Should -BeGreaterThan $RootMetaIndex
+        $script:Admission | Should -Match ([regex]::Escape('$Meta = Get-AgentMeta -Payload $Payload'))
+        $script:Admission | Should -Match ([regex]::Escape("`$ReportProperty = `$Meta.PSObject.Properties['systemPromptReport']"))
+    }
+
+    It 'conserve la mesure runtime stricte du prompt skills à zéro' {
+        $script:Admission | Should -Match 'PROMPT_ADMISSION_SKILLS_CHARS='
+        $script:Admission | Should -Match 'systemPromptReport\.skills\.promptChars absent'
+        $script:Admission | Should -Match 'skillsPromptChars=.*attendu=0'
+    }
+
     It 'conserve le vrai gate trois familles dans configure-openclaw' {
         $script:Configure | Should -Match '24_test_openclaw_prompt_admission\.ps1'
         $script:Configure | Should -Match "'chef-operations', 'architecte-solutions', 'ingenieur-devops'"
