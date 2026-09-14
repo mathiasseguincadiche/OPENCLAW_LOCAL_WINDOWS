@@ -8,6 +8,9 @@ Describe 'Contrat Parallel Search OpenClaw' {
             ConvertFrom-Json
         [string]$Lock.openclaw.plugins.parallel.package | Should -Be '@openclaw/parallel-plugin'
         [string]$Lock.openclaw.plugins.parallel.preferred | Should -Be '2026.9.4'
+        [string]$Lock.openclaw.plugins.parallel.integrity | Should -Be (
+            'sha512-/6XIzmiF1iJtXzKYZxO+v92xTzOvTnSQJh89tTQfpZkyk5SxsaQtBAeBwFT7sv3blGIYhGEVhs3+hf4rKVIqtA=='
+        )
         [string]$Lock.openclaw.plugins.parallel.provider | Should -Be 'parallel-free'
     }
 
