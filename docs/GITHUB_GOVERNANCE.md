@@ -119,7 +119,7 @@ Les résultats matériels B580 et les preuves E2E avec modèles locaux ne sont j
 
 La source de vérité de version est `VERSION`, qui doit correspondre à `project.version` dans `pyproject.toml` et à une section du `CHANGELOG.md`.
 
-Une release est déclenchée par un tag strictement égal à :
+Une release utilise toujours un tag strictement égal à :
 
 ```text
 v<VERSION>
@@ -131,6 +131,13 @@ Exemple :
 VERSION = 0.1.0
 Tag     = v0.1.0
 ```
+
+Deux chemins gouvernés sont autorisés :
+
+1. **tag explicite** `v<VERSION>` poussé sur un commit déjà présent dans `main` ;
+2. **demande de release du propriétaire** via une issue dont le titre est exactement `Release v<VERSION>`.
+
+La seconde voie matérialise le gate humain `create_or_publish_release`. Le workflow fige le SHA courant de `main`, exécute exactement les mêmes validations Linux/Windows et ne crée le tag qu'après leur succès. Le tag est créé sur ce SHA validé, n'est jamais déplacé s'il existe déjà, puis la GitHub Release est publiée avec les artefacts, SBOM, checksums et attestations. Une issue ouverte par un autre acteur, ou avec un titre différent, ne peut pas autoriser une release.
 
 Le workflow `Release` revalide le dépôt, la configuration, les contrats V7, le document flow, la flotte de modèles, la pédagogie transversale, le **Pre-V1 Hardening Gate**, le SemVer et le **V1 Release Readiness Gate**, puis exécute Ruff, mypy, coverage, les tests Python, PSScriptAnalyzer et Pester.
 
