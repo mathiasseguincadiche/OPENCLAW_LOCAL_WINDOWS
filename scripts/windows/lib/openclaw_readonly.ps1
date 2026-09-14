@@ -12,6 +12,16 @@ function Assert-OpenClawReadOnlySteadyState {
 }
 
 function Set-OpenClawReadOnlySteadyState {
+    [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'Low')]
+    param()
+
+    if (-not $PSCmdlet.ShouldProcess(
+        'OPENCLAW_CONFIG_READONLY',
+        'Forcer l état stable READONLY=1 aux niveaux Process et User'
+    )) {
+        throw 'Restauration READONLY requise: l opération ne peut pas être ignorée.'
+    }
+
     $env:OPENCLAW_CONFIG_READONLY = '1'
     [Environment]::SetEnvironmentVariable('OPENCLAW_CONFIG_READONLY', '1', 'User')
     Assert-OpenClawReadOnlySteadyState
