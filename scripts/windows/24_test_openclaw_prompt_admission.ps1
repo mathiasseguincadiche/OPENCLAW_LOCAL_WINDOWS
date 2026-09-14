@@ -14,6 +14,7 @@ if ($DryRun) {
     Write-Host '[DRY-RUN] Exécuter explicitement via openclaw agent --local: ce gate précède le démarrage du Gateway dans install-full.'
     Write-Host '[DRY-RUN] Séparer stdout JSON de stderr diagnostic avant tout ConvertFrom-Json.'
     Write-Host '[DRY-RUN] Lire meta au niveau racine de l enveloppe JSON locale OpenClaw 2026.9.4, avec fallback result.meta pour compatibilité.'
+    Write-Host '[DRY-RUN] Exiger que meta.agentMeta provider/modèle corresponde exactement au primaire demandé et refuser tout fallback.'
     Write-Host '[DRY-RUN] Exiger skills.limits.maxSkillsPromptChars=0 et agents.defaults.skills vide.'
     Write-Host '[DRY-RUN] Utiliser une session fraîche, thinking=off et une réponse déterministe.'
     Write-Host '[DRY-RUN] Exiger PROMPT_ADMISSION_SKILLS_CHARS=0 et refuser toute meta.error, dont context_overflow.'
@@ -127,6 +128,45 @@ function Get-AgentMeta {
     return $null
 }
 
+function Get-AgentRuntimeModel {
+    param([Parameter(Mandatory)]$Meta)
+
+    $AgentMetaProperty = $Meta.PSObject.Properties['agentMeta']
+    if (-not $AgentMetaProperty -or -not $AgentMetaProperty.Value) {
+        return $null
+    }
+    $AgentMeta = $AgentMetaProperty.Value
+    $ProviderProperty = $AgentMeta.PSObject.Properties['provider']
+    $ModelProperty = $AgentMeta.PSObject.Properties['model']
+    if (-not $ProviderProperty -or -not $ModelProperty) {
+        return $null
+    }
+    $Provider = [string]$ProviderProperty.Value
+    $Model = [string]$ModelProperty.Value
+    if ([string]::IsNullOrWhiteSpace($Provider) -or [string]::IsNullOrWhiteSpace($Model)) {
+        return $null
+    }
+
+    $FallbackUsed = $false
+    $ExecutionTraceProperty = $Meta.PSObject.Properties['executionTrace']
+    if ($ExecutionTraceProperty -and $ExecutionTraceProperty.Value) {
+        $FallbackProperty = $ExecutionTraceProperty.Value.PSObject.Properties['fallbackUsed']
+        if ($FallbackProperty -and $FallbackProperty.Value -eq $true) {
+            $FallbackUsed = $true
+        }
+    }
+    $FallbackAttemptsProperty = $AgentMeta.PSObject.Properties['fallbackAttempts']
+    if ($FallbackAttemptsProperty -and @($FallbackAttemptsProperty.Value).Count -gt 0) {
+        $FallbackUsed = $true
+    }
+
+    return [pscustomobject]@{
+        provider = $Provider
+        model = $Model
+        fallback_used = [bool]$FallbackUsed
+    }
+}
+
 function Get-VisibleText {
     param([Parameter(Mandatory)]$Payload)
 
@@ -232,6 +272,12 @@ $Config = Get-Content -Raw -LiteralPath $ConfigPath | ConvertFrom-Json
 Assert-ZeroSkillPromptConfig -Config $Config
 $Agent = Get-AgentEntry -Config $Config -Id $AgentId
 $ModelRef = [string]$Agent.model.primary
+$SeparatorIndex = $ModelRef.IndexOf('/')
+if ($SeparatorIndex -le 0 -or $SeparatorIndex -ge ($ModelRef.Length - 1)) {
+    throw "Référence modèle primaire OpenClaw invalide pour $AgentId: $ModelRef"
+}
+$ExpectedProvider = $ModelRef.Substring(0, $SeparatorIndex)
+$ExpectedModel = $ModelRef.Substring($SeparatorIndex + 1)
 $Stamp = Get-Date -Format 'yyyyMMdd_HHmmssfff'
 $EvidencePath = Join-Path $ProofsRoot "openclaw_prompt_admission_$Stamp.json"
 $SessionKey = "configure-admission-$Stamp-$AgentId"
@@ -243,6 +289,7 @@ $StderrPath = Join-Path $ProofsRoot ".openclaw_prompt_admission_${Stamp}_${Agent
 
 Write-Host "ADMISSION  Agent=$AgentId modèle=$ModelRef timeout=${TimeoutSeconds}s mode=$ExecutionMode"
 Write-Host "PROMPT_ADMISSION_MODE=$ExecutionMode"
+Write-Host "PROMPT_ADMISSION_REQUESTED_MODEL=$ModelRef"
 # Ce gate est exécuté par configure-openclaw avant install/start du Gateway dans
 # install-full. --local évite donc une dépendance circulaire tout en exécutant
 # réellement le même agent, sa configuration, son prompt système et son modèle.
@@ -273,7 +320,7 @@ if (-not [string]::IsNullOrWhiteSpace($StderrText)) {
 
 if ($ExitCode -ne 0) {
     [ordered]@{
-        schema_version = '1.2.0'
+        schema_version = '1.3.0'
         timestamp_utc = [DateTime]::UtcNow.ToString('o')
         execution_mode = $ExecutionMode
         agent = $AgentId
@@ -291,7 +338,7 @@ try {
 }
 catch {
     [ordered]@{
-        schema_version = '1.2.0'
+        schema_version = '1.3.0'
         timestamp_utc = [DateTime]::UtcNow.ToString('o')
         execution_mode = $ExecutionMode
         agent = $AgentId
@@ -318,6 +365,23 @@ if ([int]$SkillPromptChars -ne 0) {
     throw "Contrat prompt skills OpenClaw non respecté: skillsPromptChars=$SkillPromptChars attendu=0. preuve=$EvidencePath"
 }
 
+$RuntimeModel = Get-AgentRuntimeModel -Meta $Meta
+if (-not $RuntimeModel) {
+    throw "Contrôle d admission OpenClaw sans identité du modèle réellement exécuté. preuve=$EvidencePath"
+}
+$EffectiveRef = "$($RuntimeModel.provider)/$($RuntimeModel.model)"
+Write-Host "PROMPT_ADMISSION_EFFECTIVE_MODEL=$EffectiveRef"
+Write-Host "PROMPT_ADMISSION_FALLBACK_USED=$($RuntimeModel.fallback_used.ToString().ToLowerInvariant())"
+if ($RuntimeModel.fallback_used) {
+    throw "Contrôle d admission OpenClaw refusé: fallback détecté pour $AgentId (demandé=$ModelRef gagnant=$EffectiveRef). preuve=$EvidencePath"
+}
+if (
+    -not [string]::Equals($RuntimeModel.provider, $ExpectedProvider, [System.StringComparison]::OrdinalIgnoreCase) -or
+    -not [string]::Equals($RuntimeModel.model, $ExpectedModel, [System.StringComparison]::OrdinalIgnoreCase)
+) {
+    throw "Contrôle d admission OpenClaw refusé: modèle gagnant différent du primaire pour $AgentId (demandé=$ModelRef gagnant=$EffectiveRef). preuve=$EvidencePath"
+}
+
 $ErrorProperty = $Meta.PSObject.Properties['error']
 if ($ErrorProperty -and $ErrorProperty.Value) {
     $KindProperty = $ErrorProperty.Value.PSObject.Properties['kind']
@@ -334,5 +398,5 @@ if ($Visible -ne $Expected) {
     throw "Contrôle d admission OpenClaw réponse inattendue. Attendu='$Expected' Reçu='$Visible' preuve=$EvidencePath"
 }
 
-Write-Host "OK  Admission prompt OpenClaw validée: $AgentId -> $ModelRef"
+Write-Host "OK  Admission prompt OpenClaw validée sans fallback: $AgentId -> $ModelRef"
 exit 0
