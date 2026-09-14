@@ -1,6 +1,6 @@
 # V7 Full Parity / Superset Gate
 
-`OPENCLAW_LOCAL` est le successeur local-first de `openclaw_openrouter`. La règle de cette passe est plus stricte que la simple reprise des grandes fonctions : **toute capacité V7 encore pertinente doit être `PRESERVED`, `IMPROVED` ou explicitement `REPLACED`**.
+`OPENCLAW_LOCAL_WINDOWS` est le successeur local-first puis **local-only côté LLM** de `openclaw_openrouter`. La règle de cette passe est plus stricte que la simple reprise des grandes fonctions : **toute capacité V7 encore pertinente doit être `PRESERVED`, `IMPROVED` ou explicitement `REPLACED`**.
 
 La baseline de comparaison est le commit V7 `b2d5ae5c9df4dc06fe2f2c3fbae5653b37b67f1b` de `mathiasseguincadiche/openclaw_openrouter`. Le registre machine-readable est `config/v1/v7_superset_matrix.yaml`.
 
@@ -10,7 +10,7 @@ Les nouveaux projets utilisent `project.json` schema `2.0.0`. Les champs inconnu
 
 Classifications : `public`, `internal`, `confidential`, `restricted`. Criticités : `low`, `standard`, `high`, `critical`.
 
-La classification et la criticité ne sont plus décoratives. `restricted` interdit le cloud. `confidential` exige redaction et approbation humaine. Les projets `high` et `critical` renforcent les gates ; `critical` exige notamment une seconde revue indépendante et une approbation explicite avant cloud.
+La classification et la criticité ne sont plus décoratives. Le **LLM cloud est interdit globalement** par Architecture V2, quelle que soit la classification. La politique de classification gouverne désormais les **services externes non-LLM** : `restricted` les interdit ; `confidential` exige redaction et approbation humaine. Les projets `high` et `critical` renforcent les gates ; `critical` exige notamment une seconde revue indépendante et une approbation explicite avant service externe lorsque ce service est demandé.
 
 ## Gates de criticité exécutables
 
@@ -19,7 +19,9 @@ Les gates sont persistées dans `context/governance/criticality_gates.json` et v
 - `standard` : preuve de travail puis audit indépendant avant `REVIEW` ;
 - `high` : audit indépendant + revue sécurité par `ingenieur-securite` + preuve de rollback avant `PACKAGING`, puis approbation humaine finale ;
 - `critical` : tous les gates `high` + seconde revue indépendante réalisée par un reviewer différent ;
-- `cloud_requires_human_approval` reste conditionnel : il ne bloque pas un projet qui ne consomme pas le cloud, mais tout appel cloud d'un projet `high/critical` exige déjà l'approbation humaine dans le routeur.
+- `external_service_requires_human_approval` reste conditionnel : il ne bloque pas un projet qui n'utilise aucun service externe, mais impose une approbation humaine avant l'usage concerné d'un projet `critical`.
+
+Le shim historique `cloud_policy_for_project()` reste fail-closed et retourne systématiquement `llm_cloud_not_supported`. Il ne constitue pas une voie d'autorisation.
 
 La CLI `scripts/41_project_gates.py` permet d'afficher les gates manquants et d'enregistrer leurs preuves. L'orchestrateur enregistre automatiquement les preuves qu'il peut établir sans ambiguïté : tâches toutes `PASS`, audit de validation et approbation finale.
 
@@ -71,7 +73,7 @@ Chaque projet possède `context/governance/DECISIONS.md` et `RISKS.md`. L'analys
 
 Les appels LLM du Project Orchestrator sont automatiquement chronométrés et enregistrés dans le ledger local. Les métriques présentes dans la sortie OpenClaw sont extraites uniquement lorsqu'elles sont réellement observées : TTFT, tokens, TPS, VRAM/RAM, tool calls et retries.
 
-Aucun prompt, réponse, secret ou document privé n'entre dans la télémétrie.
+Aucun prompt, réponse, secret ou document privé n'entre dans la télémétrie. Les éventuels champs historiques liés au cloud restent uniquement des compatibilités de schéma et ne réactivent aucune route LLM cloud.
 
 ## Sécurité transverse
 
@@ -81,6 +83,6 @@ Le contrat supply-chain exige versions bornées, lockfile avant release lorsque 
 
 ## Gate anti-régression
 
-`scripts/39_validate_v7_superset.py` vérifie la matrice de parité, les contrats critiques, les gates `high/critical`, la séparation producteur/reviewer, le rollback des migrations et le branchement effectif des CLI. Ce gate est exécuté en CI et dans le workflow Release afin qu'une évolution future ne puisse pas supprimer silencieusement une qualité héritée de V7.
+`scripts/39_validate_v7_superset.py` vérifie la matrice de parité, les contrats critiques, l'interdiction LLM cloud, la gouvernance des services externes, les gates `high/critical`, la séparation producteur/reviewer, le rollback des migrations et le branchement effectif des CLI. Ce gate est exécuté en CI et dans le workflow Release afin qu'une évolution future ne puisse pas supprimer silencieusement une qualité héritée de V7.
 
 Cette parité est **fonctionnelle et contractuelle**. Elle ne remplace toujours pas la qualification réelle de la workstation, des modèles locaux, de l'Intel Arc B580, des ACL Windows sur la machine finale ou d'une publication GitHub/GitLab E2E.
