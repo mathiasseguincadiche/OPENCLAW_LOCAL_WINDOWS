@@ -12,11 +12,11 @@ local_provider:
   base_url: "http://127.0.0.1:11434"
   api: ollama-native
   expose_lan: false
-cloud:
-  provider: openrouter
-  enabled_by_default: false
-  require_explicit_escalation: true
-  budget_contract: budget_policy.yaml
+llm_cloud:
+  supported: false
+  providers: []
+  escalation_supported: false
+  automatic_fallback: false
 web:
   local_first_contract: web_policy.yaml
 projects:
