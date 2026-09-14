@@ -73,7 +73,7 @@ function Get-OpenClawBackupFile {
     while ($Pending.Count -gt 0) {
         $Current = $Pending.Pop()
         foreach ($Item in Get-ChildItem -Force -LiteralPath $Current -ErrorAction Stop) {
-            $Relative = [IO.Path]::GetRelativePath($Root, $Item.FullName).Replace('\\', '/')
+            $Relative = [IO.Path]::GetRelativePath($Root, $Item.FullName).Replace('\', '/')
             $LogicalPath = "$Prefix/$Relative"
 
             if (Test-OpenClawBackupPathExcluded -LogicalPath $LogicalPath) {
@@ -115,7 +115,7 @@ function Get-OpenClawBackupManifestEntry {
     }
 
     $Entries = foreach ($File in Get-OpenClawBackupFile -Root $Root -Prefix $Prefix) {
-        $Relative = [IO.Path]::GetRelativePath($Root, $File.FullName).Replace('\\', '/')
+        $Relative = [IO.Path]::GetRelativePath($Root, $File.FullName).Replace('\', '/')
         [pscustomobject]@{
             path = "$Prefix/$Relative"
             size = [int64]$File.Length
