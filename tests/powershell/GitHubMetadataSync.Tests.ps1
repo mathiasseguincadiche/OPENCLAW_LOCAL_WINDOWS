@@ -9,7 +9,8 @@ Describe 'GitHub repository metadata sync helper' {
     }
 
     It 'fixe la description Architecture V2 local-only' {
-        $script:Helper | Should -Match [regex]::Escape('Plateforme IA multi-agents local-only côté LLM pour Windows 11 : OpenClaw + Ollama, routage local hybride et qualification Intel Arc B580.')
+        $ExpectedDescription = [regex]::Escape('Plateforme IA multi-agents local-only côté LLM pour Windows 11 : OpenClaw + Ollama, routage local hybride et qualification Intel Arc B580.')
+        $script:Helper | Should -Match $ExpectedDescription
         $script:Helper | Should -Not -Match 'escalade cloud contrôlée'
     }
 
@@ -22,6 +23,7 @@ Describe 'GitHub repository metadata sync helper' {
     }
 
     It 'reste en lecture seule sans Apply et vérifie après écriture' {
+        $script:Helper | Should -Match '\[switch\]\$DryRun'
         $script:Helper | Should -Match '\[switch\]\$Apply'
         $script:Helper | Should -Match "--method', 'PATCH'"
         $script:Helper | Should -Match '--method PUT'
