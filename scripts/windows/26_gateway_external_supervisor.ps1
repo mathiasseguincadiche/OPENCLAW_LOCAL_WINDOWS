@@ -97,6 +97,12 @@ function Install-ExternalGatewaySupervisor {
         }
     }
 
+    $ExistingTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    if ($ExistingTask) {
+        Write-Host "INFO Mise à niveau du superviseur Gateway: arrêt de l'instance existante avant remplacement."
+        Invoke-ExternalGatewaySupervisorStop
+    }
+
     $RuntimeDir = Join-Path $PlatformRoot 'runtime'
     New-Item -ItemType Directory -Path $RuntimeDir -Force | Out-Null
     $InstalledScript = Get-InstalledSupervisorPath -PlatformRoot $PlatformRoot
@@ -257,6 +263,7 @@ if ($DryRun) {
     Write-Host '[DRY-RUN] OPENCLAW_SUPERVISOR_MODE=external et OPENCLAW_SERVICE_REPAIR_POLICY=external.'
     Write-Host '[DRY-RUN] Le processus Gateway utilisera OPENCLAW_STATE_DIR=<root>\state et OPENCLAW_CONFIG_PATH=<root>\state\openclaw.json.'
     Write-Host '[DRY-RUN] Le wrapper relance gateway run après toute sortie tant que la tâche reste active.'
+    Write-Host '[DRY-RUN] Une réinstallation arrête d abord le wrapper existant avant de remplacer le script et la définition de tâche.'
     Write-Host '[DRY-RUN] Aucun service natif OpenClaw install/start ne sera utilisé pour cet état relocalisé.'
     exit 0
 }
