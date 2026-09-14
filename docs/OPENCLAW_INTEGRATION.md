@@ -45,7 +45,7 @@ openclaw --version
 
 Le projet exploite les comportements 2026.9.4 de façon conservatrice :
 
-- **Node.js 26.0.0 reste le runtime préféré** du lock local, conformément à la recommandation OpenClaw pour les installations de packages ;
+- **Node.js 26.1.0 est le runtime préféré** du lock local : `openclaw@2026.9.4` exige `>=26.1.0` sur la branche Node 26 ; le ZIP Windows x64 est verrouillé par SHA-256 ;
 - `install-full` réexécute `openclaw gateway install --runtime node --force --json`, ce qui permet au service Gateway de se rattacher au runtime Node géré après une montée de version ;
 - `openclaw@2026.9.4` et `@openclaw/parallel-plugin@2026.9.4` ont chacun un SRI SHA-512 exact dans le runtime lock ;
 - `scripts/50_verify_npm_integrities.py` refuse le core ou le plugin si `runtime lock`, `npm dist.integrity` et le SHA-512 recalculé du tarball ne sont pas strictement identiques ;
