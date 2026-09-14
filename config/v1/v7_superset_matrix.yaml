@@ -72,9 +72,15 @@ capabilities:
   supply_chain_guards:
     status: IMPROVED
     evidence: config/v1/security.yaml
-  cloud_cost_control:
+  legacy_cloud_llm_cost_control:
+    status: REPLACED
+    evidence: docs/FINOPS.md
+  local_only_llm_boundary:
     status: IMPROVED
-    evidence: config/v1/budget_policy.yaml
+    evidence: config/v1/escalation_policy.yaml
+  external_service_governance:
+    status: IMPROVED
+    evidence: config/v1/project_schema_policy.yaml
   project_orchestration:
     status: IMPROVED
     evidence: config/v1/orchestration_policy.yaml
