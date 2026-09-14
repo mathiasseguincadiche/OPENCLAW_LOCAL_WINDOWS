@@ -10,7 +10,6 @@ import threading
 import typing
 import urllib.parse
 
-
 HOP_BY_HOP_HEADERS = {
     "connection",
     "keep-alive",
