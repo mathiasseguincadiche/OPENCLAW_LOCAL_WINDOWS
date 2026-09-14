@@ -10,11 +10,16 @@ Describe 'Qualification Ollama lisible et bornée' {
         $Verify | Should -Match '/api/chat'
         $Verify | Should -Match '/api/ps'
         $Verify | Should -Match 'stream = \$false'
-        $Verify | Should -Match 'num_predict = 64'
-        $Verify | Should -Match "qwen3\.5:\*"
-        $Verify | Should -Match '\$RequestBody\.think = \$false'
+        $Verify | Should -Match 'think = \$false'
+        $Verify | Should -Match '\$InitialSmokeMaxTokens = 64'
+        $Verify | Should -Match '\$ReasoningRetryMaxTokens = 512'
+        $Verify | Should -Match 'Invoke-OllamaSmokeRequest'
+        $Verify | Should -Match 'thinking_length -gt 0'
+        $Verify | Should -Match "done_reason -eq 'length'"
+        $Verify | Should -Match 'Reasoning smoke retry'
         $Verify | Should -Match 'thinking_chars='
         $Verify | Should -Match 'done_reason='
+        $Verify | Should -Not -Match "qwen3\.5:\*"
         $Verify | Should -Not -Match '/api/generate'
         $Verify | Should -Not -Match '& ollama run'
     }
