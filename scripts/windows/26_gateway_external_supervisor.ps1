@@ -11,6 +11,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $TaskName = 'OPENCLAW_LOCAL Gateway'
+$RestartBackoffSeconds = 2
 
 function Get-PlatformRoot {
     if (-not [string]::IsNullOrWhiteSpace($PlatformRootOverride)) {
@@ -81,6 +82,8 @@ function Install-ExternalGatewaySupervisor {
     foreach ($Required in @(
         'Get-ScheduledTask',
         'Register-ScheduledTask',
+        'Start-ScheduledTask',
+        'Stop-ScheduledTask',
         'New-ScheduledTask',
         'New-ScheduledTaskAction',
         'New-ScheduledTaskTrigger',
@@ -219,20 +222,29 @@ function Run-ExternalGateway {
     "STARTED_UTC=$([DateTimeOffset]::UtcNow.ToString('o'))" | Set-Content -LiteralPath $LogPath -Encoding utf8
     "SUPERVISOR=external" | Add-Content -LiteralPath $LogPath -Encoding utf8
     "STATE_DIR=$StateDir" | Add-Content -LiteralPath $LogPath -Encoding utf8
+    "RESTART_BACKOFF_SECONDS=$RestartBackoffSeconds" | Add-Content -LiteralPath $LogPath -Encoding utf8
 
-    try {
-        & $OpenClaw 'gateway' 'run' *>> $LogPath
-        $ExitCode = $LASTEXITCODE
+    $Cycle = 0
+    while ($true) {
+        $Cycle++
+        "GATEWAY_CYCLE=$Cycle STARTED_UTC=$([DateTimeOffset]::UtcNow.ToString('o'))" |
+            Add-Content -LiteralPath $LogPath -Encoding utf8
+        $ExitCode = 1
+        try {
+            & $OpenClaw 'gateway' 'run' *>> $LogPath
+            $ExitCode = [int]$LASTEXITCODE
+        }
+        catch {
+            $_ | Out-String | Add-Content -LiteralPath $LogPath -Encoding utf8
+            $ExitCode = 1
+        }
+        "GATEWAY_CYCLE=$Cycle EXIT_CODE=$ExitCode FINISHED_UTC=$([DateTimeOffset]::UtcNow.ToString('o'))" |
+            Add-Content -LiteralPath $LogPath -Encoding utf8
+        # Le Task Scheduler possède le wrapper, pas le processus Gateway. Tant que
+        # la tâche n'est pas explicitement arrêtée par OPENCLAW_LOCAL, une sortie
+        # Gateway (y compris un redémarrage demandé) est relancée avec backoff.
+        Start-Sleep -Seconds $RestartBackoffSeconds
     }
-    catch {
-        $_ | Out-String | Add-Content -LiteralPath $LogPath -Encoding utf8
-        throw
-    }
-    finally {
-        "FINISHED_UTC=$([DateTimeOffset]::UtcNow.ToString('o'))" | Add-Content -LiteralPath $LogPath -Encoding utf8
-    }
-
-    exit $ExitCode
 }
 
 $PlatformRoot = Get-PlatformRoot
@@ -242,7 +254,8 @@ if ($DryRun) {
     Write-Host "[DRY-RUN] Task=$TaskName root=$PlatformRoot action=$Action"
     Write-Host '[DRY-RUN] OPENCLAW_SUPERVISOR_MODE=external et OPENCLAW_SERVICE_REPAIR_POLICY=external.'
     Write-Host '[DRY-RUN] Le processus Gateway utilisera OPENCLAW_STATE_DIR=<root>\state et OPENCLAW_CONFIG_PATH=<root>\state\openclaw.json.'
-    Write-Host '[DRY-RUN] Aucun openclaw gateway install/start natif ne sera utilisé pour cet état relocalisé.'
+    Write-Host '[DRY-RUN] Le wrapper relance gateway run après toute sortie tant que la tâche reste active.'
+    Write-Host '[DRY-RUN] Aucun service natif OpenClaw install/start ne sera utilisé pour cet état relocalisé.'
     exit 0
 }
 
