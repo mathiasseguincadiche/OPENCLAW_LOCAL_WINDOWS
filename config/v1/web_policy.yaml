@@ -1,4 +1,4 @@
-schema_version: "2.0.0"
+schema_version: "2.1.0"
 platform_version: "0.3.0"
 local_first: true
 
@@ -63,9 +63,11 @@ project_enforcement:
   require_before_task_pass: true
   revalidate_before_states: [VALIDATING, REVIEW, PACKAGING, COMPLETE]
 
-cloud_escalation:
+remote_source_escalation:
   allowed_only_after_local_web_attempt: true
   reasons: [deep_web_research, source_conflict]
+  llm_reasoning_must_remain_local: true
+  llm_cloud_escalation_forbidden: true
 
 security:
   private_network_fetch: false
