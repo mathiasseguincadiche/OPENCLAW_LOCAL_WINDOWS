@@ -1,7 +1,7 @@
 # OPENCLAW_LOCAL_WINDOWS
 
-[![CI](https://github.com/mathiasseguincadiche/OPENCLAW_LOCAL/actions/workflows/ci.yml/badge.svg)](https://github.com/mathiasseguincadiche/OPENCLAW_LOCAL/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/mathiasseguincadiche/OPENCLAW_LOCAL/actions/workflows/codeql.yml/badge.svg)](https://github.com/mathiasseguincadiche/OPENCLAW_LOCAL/actions/workflows/codeql.yml)
+[![CI](https://github.com/mathiasseguincadiche/OPENCLAW_LOCAL_WINDOWS/actions/workflows/ci.yml/badge.svg)](https://github.com/mathiasseguincadiche/OPENCLAW_LOCAL_WINDOWS/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/mathiasseguincadiche/OPENCLAW_LOCAL_WINDOWS/actions/workflows/codeql.yml/badge.svg)](https://github.com/mathiasseguincadiche/OPENCLAW_LOCAL_WINDOWS/actions/workflows/codeql.yml)
 [![Version](https://img.shields.io/badge/version-0.3.0-blue.svg)](VERSION)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![PowerShell 7](https://img.shields.io/badge/PowerShell-7%2B-blue.svg)](https://learn.microsoft.com/powershell/)
@@ -117,8 +117,8 @@ Python, Node.js, OpenClaw et Ollama sont contrôlés par le runtime lock du dép
 ## Installation
 
 ```powershell
-git clone https://github.com/mathiasseguincadiche/OPENCLAW_LOCAL.git
-cd OPENCLAW_LOCAL
+git clone https://github.com/mathiasseguincadiche/OPENCLAW_LOCAL_WINDOWS.git
+cd OPENCLAW_LOCAL_WINDOWS
 
 .\menu.ps1 -Action install-full -DryRun
 .\menu.ps1 -Action install-full

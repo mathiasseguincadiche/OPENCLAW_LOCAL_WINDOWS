@@ -232,8 +232,8 @@ def test_critical_requires_second_independent_reviewer(tmp_path: Path) -> None:
         reason="all_critical_gates_satisfied",
     )
     status = criticality_gate_status(project)
-    assert status["conditional"] == ["cloud_requires_human_approval"]
-    assert "cloud_requires_human_approval" not in status["missing"]
+    assert status["conditional"] == ["external_service_requires_human_approval"]
+    assert "external_service_requires_human_approval" not in status["missing"]
 
 
 def test_failed_migration_restores_project_and_records_rollback(

@@ -37,10 +37,19 @@ def main() -> int:
         failures.append("classifications projet V7 incomplètes")
     if set(schema.get("criticalities", [])) != {"low", "standard", "high", "critical"}:
         failures.append("criticités projet V7 incomplètes")
-    restricted = schema.get("cloud_policy", {}).get("restricted", {})
+
+    llm_cloud = schema.get("llm_cloud_policy", {})
+    if llm_cloud.get("allowed") is not False:
+        failures.append("Architecture V2: le LLM cloud doit être interdit globalement")
+    if llm_cloud.get("fallback_allowed") is not False:
+        failures.append("Architecture V2: aucun fallback LLM cloud n'est autorisé")
+    if llm_cloud.get("providers") != []:
+        failures.append("Architecture V2: aucun fournisseur LLM cloud ne doit être déclaré")
+
+    restricted = schema.get("external_service_policy", {}).get("restricted", {})
     if restricted.get("allowed") is not False:
-        failures.append("classification restricted doit interdire le cloud")
-    confidential = schema.get("cloud_policy", {}).get("confidential", {})
+        failures.append("classification restricted doit interdire les services externes")
+    confidential = schema.get("external_service_policy", {}).get("confidential", {})
     if confidential.get("redaction_required") is not True:
         failures.append("classification confidential doit exiger redaction")
     if confidential.get("human_approval_required") is not True:
@@ -57,9 +66,9 @@ def main() -> int:
     critical_gates = set(schema.get("criticality_gates", {}).get("critical", []))
     if not {
         "second_independent_review_required",
-        "cloud_requires_human_approval",
+        "external_service_requires_human_approval",
     } <= critical_gates:
-        failures.append("criticité critical: seconde revue/cloud approval absents")
+        failures.append("criticité critical: seconde revue/service externe approval absents")
 
     intake_security = intake.get("security", {})
     for key in (
@@ -188,6 +197,7 @@ def main() -> int:
         "record_criticality_gate",
         "assert_transition_criticality_gates",
         "second_independent_review_required",
+        "external_service_policy_for_project",
     ):
         if marker not in governance_source:
             failures.append(f"gates de criticité non exécutables: {marker}")
@@ -213,6 +223,7 @@ def main() -> int:
     print(f"OK  {len(capabilities)} capacités V7 classées PRESERVED/IMPROVED/REPLACED")
     print("OK  manifeste strict + classification/criticité + migrations transactionnelles")
     print("OK  gates high/critical exécutables + séparation producer/reviewer")
+    print("OK  services externes gouvernés + LLM cloud interdit globalement")
     print("OK  Intake/sources + intégrité multi-phase")
     print("OK  pédagogie/accessibilité/publication/télémétrie/sécurité")
     print("Verdict: CONFORME")

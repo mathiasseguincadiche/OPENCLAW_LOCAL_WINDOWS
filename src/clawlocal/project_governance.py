@@ -9,7 +9,7 @@ from clawlocal.config import load_contract
 from clawlocal.project_contracts import validate_project_manifest
 
 _GATE_RELATIVE = Path("context/governance/criticality_gates.json")
-_CONDITIONAL_GATES = {"cloud_requires_human_approval"}
+_CONDITIONAL_GATES = {"external_service_requires_human_approval"}
 _TRANSITION_GATES: dict[str, set[str]] = {
     "VALIDATING": {"evidence_required"},
     "REVIEW": {"evidence_required", "independent_audit_required"},
@@ -183,7 +183,10 @@ def record_criticality_gate(
         first_actor = str(first_reviews[-1].get("actor", ""))
         if normalized_actor == first_actor:
             raise PermissionError("la seconde revue indépendante doit utiliser un autre reviewer")
-    if normalized_gate in {"human_final_approval_required", "cloud_requires_human_approval"}:
+    if normalized_gate in {
+        "human_final_approval_required",
+        "external_service_requires_human_approval",
+    }:
         if normalized_actor != "human" or not human_approved:
             raise PermissionError(f"{normalized_gate} exige une approbation humaine explicite")
 
@@ -234,7 +237,7 @@ def assert_transition_criticality_gates(project: Path, target: str) -> None:
         )
 
 
-def cloud_policy_for_project(
+def external_service_policy_for_project(
     manifest: dict[str, Any],
     *,
     redacted: bool = False,
@@ -243,7 +246,7 @@ def cloud_policy_for_project(
     validate_project_manifest(manifest)
     policy = load_contract("project_schema_policy.yaml")
     classification = str(manifest["classification"])
-    entry = policy.get("cloud_policy", {}).get(classification, {})
+    entry = policy.get("external_service_policy", {}).get(classification, {})
     allowed = entry.get("allowed") is True
     redaction_required = entry.get("redaction_required") is True
     approval_required = entry.get("human_approval_required") is True
@@ -260,6 +263,25 @@ def cloud_policy_for_project(
         "redaction_required": redaction_required,
         "human_approval_required": approval_required,
         "reason": reason,
+    }
+
+
+def cloud_policy_for_project(
+    manifest: dict[str, Any],
+    *,
+    redacted: bool = False,
+    human_approved: bool = False,
+) -> dict[str, Any]:
+    """Compatibility shim: cloud LLM execution is always denied in Architecture V2."""
+    del redacted, human_approved
+    validate_project_manifest(manifest)
+    return {
+        "allowed": False,
+        "classification": str(manifest["classification"]),
+        "criticality": str(manifest["criticality"]),
+        "redaction_required": False,
+        "human_approval_required": False,
+        "reason": "llm_cloud_not_supported",
     }
 
 

@@ -62,8 +62,8 @@ ollama pull granite4.2:8b-q4_K_M
 Depuis PowerShell 7 :
 
 ```powershell
-git clone https://github.com/mathiasseguincadiche/OPENCLAW_LOCAL.git
-cd OPENCLAW_LOCAL
+git clone https://github.com/mathiasseguincadiche/OPENCLAW_LOCAL_WINDOWS.git
+cd OPENCLAW_LOCAL_WINDOWS
 
 .\menu.ps1 -Action install-full -DryRun
 .\menu.ps1 -Action install-full

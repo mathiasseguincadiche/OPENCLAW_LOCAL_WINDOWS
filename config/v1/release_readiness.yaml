@@ -9,7 +9,7 @@ qualification:
   model_identity_sha256: ""
   automated_qualification_sha256: ""
   openclaw_e2e_sha256: ""
-  backend_comparison_sha256: ""
+  vulkan_runtime_stability_sha256: ""
   golden_projects_sha256: ""
   multimodal_evidence_sha256: ""
   telemetry_evidence_sha256: ""
