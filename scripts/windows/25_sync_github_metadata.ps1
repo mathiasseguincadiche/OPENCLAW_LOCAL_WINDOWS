@@ -49,8 +49,7 @@ $currentTopics = @($current.topics | Sort-Object)
 $expectedTopics = @($TargetTopics | Sort-Object)
 
 $descriptionMatches = [string]$current.description -eq $TargetDescription
-$topicsMatch = ($currentTopics.Count -eq $expectedTopics.Count) -and \
-    -not (Compare-Object -ReferenceObject $expectedTopics -DifferenceObject $currentTopics)
+$topicsMatch = ($currentTopics.Count -eq $expectedTopics.Count) -and -not (Compare-Object -ReferenceObject $expectedTopics -DifferenceObject $currentTopics)
 
 Write-Host "REPOSITORY=$Repository"
 Write-Host "CURRENT_DESCRIPTION=$($current.description)"
@@ -86,8 +85,7 @@ if ($LASTEXITCODE -ne 0) {
 $verified = Invoke-GhJson -Arguments @('api', "repos/$Repository") | ConvertFrom-Json
 $verifiedTopics = @($verified.topics | Sort-Object)
 $verifiedDescriptionMatches = [string]$verified.description -eq $TargetDescription
-$verifiedTopicsMatch = ($verifiedTopics.Count -eq $expectedTopics.Count) -and \
-    -not (Compare-Object -ReferenceObject $expectedTopics -DifferenceObject $verifiedTopics)
+$verifiedTopicsMatch = ($verifiedTopics.Count -eq $expectedTopics.Count) -and -not (Compare-Object -ReferenceObject $expectedTopics -DifferenceObject $verifiedTopics)
 
 if (-not ($verifiedDescriptionMatches -and $verifiedTopicsMatch)) {
     throw 'La vérification post-écriture indique que les métadonnées GitHub ne correspondent pas à la cible.'
