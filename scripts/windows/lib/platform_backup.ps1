@@ -1,21 +1,77 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-function Test-OpenClawBackupTreeSafe {
-    param([Parameter(Mandatory)][string]$Root)
+# OpenClaw reconstruit ce sous-arbre à partir du runtime lock lors de la
+# convergence des plugins. Il contient des junctions/symlinks npm légitimes et
+# ne constitue pas un état utilisateur à restaurer.
+$script:OpenClawBackupExcludedRelativePaths = @('state/npm')
 
-    if (-not (Test-Path -LiteralPath $Root)) {
-        return $true
-    }
+function Test-OpenClawBackupPathExcluded {
+    param([Parameter(Mandatory)][string]$LogicalPath)
 
-    $Items = @((Get-Item -Force -LiteralPath $Root)) + @(
-        Get-ChildItem -Force -Recurse -LiteralPath $Root -ErrorAction Stop
-    )
-    foreach ($Item in $Items) {
-        if (($Item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-            throw "Backup pré-upgrade refusé: reparse point détecté: $($Item.FullName)"
+    $Normalized = ($LogicalPath -replace '\\', '/').Trim('/')
+    foreach ($Excluded in $script:OpenClawBackupExcludedRelativePaths) {
+        $Needle = ([string]$Excluded).Trim('/')
+        if (
+            $Normalized.Equals($Needle, [StringComparison]::OrdinalIgnoreCase) -or
+            $Normalized.StartsWith("$Needle/", [StringComparison]::OrdinalIgnoreCase)
+        ) {
+            return $true
         }
     }
+    return $false
+}
+
+function Get-OpenClawBackupFiles {
+    param(
+        [Parameter(Mandatory)][string]$Root,
+        [Parameter(Mandatory)][string]$Prefix
+    )
+
+    if (-not (Test-Path -LiteralPath $Root)) {
+        return @()
+    }
+
+    $RootItem = Get-Item -Force -LiteralPath $Root
+    if (($RootItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "Backup pré-upgrade refusé: reparse point détecté: $($RootItem.FullName)"
+    }
+
+    $Files = [System.Collections.Generic.List[object]]::new()
+    $Pending = [System.Collections.Generic.Stack[string]]::new()
+    $Pending.Push($RootItem.FullName)
+
+    while ($Pending.Count -gt 0) {
+        $Current = $Pending.Pop()
+        foreach ($Item in Get-ChildItem -Force -LiteralPath $Current -ErrorAction Stop) {
+            $Relative = [IO.Path]::GetRelativePath($Root, $Item.FullName).Replace('\\', '/')
+            $LogicalPath = "$Prefix/$Relative"
+
+            if (Test-OpenClawBackupPathExcluded -LogicalPath $LogicalPath) {
+                continue
+            }
+            if (($Item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw "Backup pré-upgrade refusé: reparse point détecté: $($Item.FullName)"
+            }
+            if ($Item.PSIsContainer) {
+                $Pending.Push($Item.FullName)
+            }
+            else {
+                $Files.Add($Item)
+            }
+        }
+    }
+
+    return @($Files)
+}
+
+function Test-OpenClawBackupTreeSafe {
+    param(
+        [Parameter(Mandatory)][string]$Root,
+        [Parameter(Mandatory)][string]$Prefix
+    )
+
+    $null = @(Get-OpenClawBackupFiles -Root $Root -Prefix $Prefix)
     return $true
 }
 
@@ -29,7 +85,7 @@ function Get-OpenClawBackupManifestEntry {
         return @()
     }
 
-    $Entries = foreach ($File in Get-ChildItem -Force -File -Recurse -LiteralPath $Root -ErrorAction Stop) {
+    $Entries = foreach ($File in Get-OpenClawBackupFiles -Root $Root -Prefix $Prefix) {
         $Relative = [IO.Path]::GetRelativePath($Root, $File.FullName).Replace('\\', '/')
         [pscustomobject]@{
             path = "$Prefix/$Relative"
@@ -38,6 +94,25 @@ function Get-OpenClawBackupManifestEntry {
         }
     }
     return @($Entries | Sort-Object path)
+}
+
+function Copy-OpenClawBackupRoot {
+    param(
+        [Parameter(Mandatory)][string]$Source,
+        [Parameter(Mandatory)][string]$Destination,
+        [Parameter(Mandatory)][string]$Prefix
+    )
+
+    New-Item -ItemType Directory -Path $Destination -Force | Out-Null
+    foreach ($File in Get-OpenClawBackupFiles -Root $Source -Prefix $Prefix) {
+        $Relative = [IO.Path]::GetRelativePath($Source, $File.FullName)
+        $Target = Join-Path $Destination $Relative
+        $Parent = Split-Path -Parent $Target
+        if (-not (Test-Path -LiteralPath $Parent)) {
+            New-Item -ItemType Directory -Path $Parent -Force | Out-Null
+        }
+        Copy-Item -LiteralPath $File.FullName -Destination $Target -Force -ErrorAction Stop
+    }
 }
 
 function New-OpenClawPreUpgradeBackup {
@@ -57,7 +132,7 @@ function New-OpenClawPreUpgradeBackup {
 
     foreach ($Name in $PresentNames) {
         $Source = Join-Path $PlatformRoot $Name
-        $null = Test-OpenClawBackupTreeSafe -Root $Source
+        $null = Test-OpenClawBackupTreeSafe -Root $Source -Prefix $Name
     }
 
     $BeforeEntries = foreach ($Name in $PresentNames) {
@@ -79,7 +154,7 @@ function New-OpenClawPreUpgradeBackup {
         foreach ($Name in $PresentNames) {
             $Source = Join-Path $PlatformRoot $Name
             $Destination = Join-Path $BackupRoot $Name
-            Copy-Item -LiteralPath $Source -Destination $Destination -Recurse -Force -ErrorAction Stop
+            Copy-OpenClawBackupRoot -Source $Source -Destination $Destination -Prefix $Name
         }
 
         $AfterEntries = foreach ($Name in $PresentNames) {
@@ -107,11 +182,12 @@ function New-OpenClawPreUpgradeBackup {
         }
 
         $Manifest = [ordered]@{
-            schema_version = '1.0.0'
+            schema_version = '1.1.0'
             kind = 'openclaw-local-pre-upgrade-backup'
             created_at_utc = (Get-Date).ToUniversalTime().ToString('o')
             source_root = $PlatformRoot
             included_roots = @($PresentNames)
+            excluded_paths = @($script:OpenClawBackupExcludedRelativePaths)
             verified = $true
             file_count = $BeforeEntries.Count
             files = @($BeforeEntries)
@@ -122,6 +198,7 @@ function New-OpenClawPreUpgradeBackup {
             -Value "verified_at_utc=$((Get-Date).ToUniversalTime().ToString('o'))" -Encoding utf8
 
         Write-Host "OK  Backup pré-upgrade vérifié: $BackupRoot"
+        Write-Host "INFO Backup exclut les artefacts reconstructibles: $($script:OpenClawBackupExcludedRelativePaths -join ', ')"
         Write-Host "OPENCLAW_PREUPGRADE_BACKUP=$BackupRoot"
         return [pscustomobject]@{
             path = $BackupRoot
