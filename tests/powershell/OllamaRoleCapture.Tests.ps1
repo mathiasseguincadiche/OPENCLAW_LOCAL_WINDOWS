@@ -1,13 +1,10 @@
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $DiagnosticScript = Join-Path $RepoRoot 'scripts\windows\26_diagnose_openclaw_ollama_roles.ps1'
 $ProxyScript = Join-Path $RepoRoot 'scripts\54_capture_ollama_request_roles.py'
+$DiagnosticText = Get-Content -Raw -LiteralPath $DiagnosticScript
+$ProxyText = Get-Content -Raw -LiteralPath $ProxyScript
 
 Describe 'Ollama full-agent role capture diagnostic' {
-    BeforeAll {
-        $DiagnosticText = Get-Content -Raw -LiteralPath $DiagnosticScript
-        $ProxyText = Get-Content -Raw -LiteralPath $ProxyScript
-    }
-
     It 'uses a temporary OpenClaw config selector instead of rewriting canonical state' {
         $DiagnosticText | Should -Match 'OPENCLAW_CONFIG_PATH'
         $DiagnosticText | Should -Match '\.openclaw_role_capture_'
