@@ -22,7 +22,7 @@ function Test-OpenClawBackupPathExcluded {
     return $false
 }
 
-function Get-OpenClawBackupFiles {
+function Get-OpenClawBackupFile {
     param(
         [Parameter(Mandatory)][string]$Root,
         [Parameter(Mandatory)][string]$Prefix
@@ -71,7 +71,7 @@ function Test-OpenClawBackupTreeSafe {
         [Parameter(Mandatory)][string]$Prefix
     )
 
-    $null = @(Get-OpenClawBackupFiles -Root $Root -Prefix $Prefix)
+    $null = @(Get-OpenClawBackupFile -Root $Root -Prefix $Prefix)
     return $true
 }
 
@@ -85,7 +85,7 @@ function Get-OpenClawBackupManifestEntry {
         return @()
     }
 
-    $Entries = foreach ($File in Get-OpenClawBackupFiles -Root $Root -Prefix $Prefix) {
+    $Entries = foreach ($File in Get-OpenClawBackupFile -Root $Root -Prefix $Prefix) {
         $Relative = [IO.Path]::GetRelativePath($Root, $File.FullName).Replace('\\', '/')
         [pscustomobject]@{
             path = "$Prefix/$Relative"
@@ -104,7 +104,7 @@ function Copy-OpenClawBackupRoot {
     )
 
     New-Item -ItemType Directory -Path $Destination -Force | Out-Null
-    foreach ($File in Get-OpenClawBackupFiles -Root $Source -Prefix $Prefix) {
+    foreach ($File in Get-OpenClawBackupFile -Root $Source -Prefix $Prefix) {
         $Relative = [IO.Path]::GetRelativePath($Source, $File.FullName)
         $Target = Join-Path $Destination $Relative
         $Parent = Split-Path -Parent $Target
