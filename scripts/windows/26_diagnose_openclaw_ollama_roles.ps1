@@ -63,10 +63,15 @@ function Get-AgentEntry {
 }
 
 function Set-ProcessEnvValue {
+    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'None')]
     param(
         [Parameter(Mandatory)][string]$Name,
         [AllowNull()][string]$Value
     )
+
+    if (-not $PSCmdlet.ShouldProcess("Process environment variable $Name", 'Set or clear')) {
+        return
+    }
     if ($null -eq $Value) {
         Remove-Item -LiteralPath "Env:$Name" -ErrorAction SilentlyContinue
     }
