@@ -22,13 +22,23 @@ Describe 'Contrat OpenClaw 2026.9.4' {
     }
 
     It 'aligne exactement le plugin Parallel sur OpenClaw 2026.9.4' {
-        [string]$script:RuntimeLock.openclaw.plugins.parallel.package | Should -Be '@openclaw/parallel-plugin'
+        [string]$script:RuntimeLock.openclaw.plugins.parallel.package |
+            Should -Be '@openclaw/parallel-plugin'
         [string]$script:RuntimeLock.openclaw.plugins.parallel.preferred | Should -Be '2026.9.4'
+        [string]$script:RuntimeLock.openclaw.plugins.parallel.integrity | Should -Be (
+            'sha512-/6XIzmiF1iJtXzKYZxO+v92xTzOvTnSQJh89tTQfpZkyk5SxsaQtBAeBwFT7sv3blGIYhGEVhs3+hf4rKVIqtA=='
+        )
         [string]$script:RuntimeLock.openclaw.plugins.parallel.provider | Should -Be 'parallel-free'
     }
 
-    It 'conserve Node 26 et répare explicitement le Gateway sur le runtime Node géré' {
-        [string]$script:RuntimeLock.node.preferred | Should -Be '26.0.0'
+    It 'verrouille Node 26.1.0 compatible et répare le Gateway sur le runtime Node géré' {
+        [string]$script:RuntimeLock.node.preferred | Should -Be '26.1.0'
+        [string]$script:RuntimeLock.node.sha256_win_x64_zip | Should -Be (
+            '089a02c4c687451c9f0b7f1bfd252dae85a7ba27df0295a14096bdcc956fdc92'
+        )
+        $Node26 = @($script:RuntimeLock.node.supported | Where-Object { [int]$_.major -eq 26 })
+        $Node26.Count | Should -Be 1
+        [string]$Node26[0].minimum | Should -Be '26.1.0'
         $script:InstallFull | Should -Match (
             'gateway\s+install\s+--runtime\s+node\s+--force\s+--json'
         )
