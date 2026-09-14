@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 PROJECT_SCHEMA_VERSION = "2.0.0"
-PLATFORM_VERSION = "0.2.0"
+PLATFORM_VERSION = "0.3.0"
 CLASSIFICATIONS = {"public", "internal", "confidential", "restricted"}
 CRITICALITIES = {"low", "standard", "high", "critical"}
 PROJECT_STATUSES = {

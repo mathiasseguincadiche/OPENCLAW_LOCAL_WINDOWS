@@ -1,5 +1,5 @@
 schema_version: "1.1.0"
-platform_version: "0.2.0"
+platform_version: "0.3.0"
 default_enabled: true
 local_only: true
 automatic_capture_for_orchestrator_calls: true

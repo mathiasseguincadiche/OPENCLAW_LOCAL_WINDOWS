@@ -1,5 +1,5 @@
 schema_version: "2.1.0"
-platform_version: "0.2.0"
+platform_version: "0.3.0"
 suite: devops-v2
 required_contexts: [8192, 16384]
 optional_contexts: [32768]

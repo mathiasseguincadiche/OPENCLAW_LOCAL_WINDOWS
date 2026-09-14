@@ -1,5 +1,5 @@
 schema_version: "1.1.0"
-platform_version: "0.2.0"
+platform_version: "0.3.0"
 network:
   local_model_loopback_only: true
   default_ollama_host: "127.0.0.1"
