@@ -110,7 +110,7 @@ jobs:
 
       - name: Validate release metadata
         run: |
-          python -m pip install --disable-pip-version-check PyYAML
+          python -m pip install --disable-pip-version-check -e ".[dev]"
           python scripts/22_validate_configs.py
           python scripts/24_validate_release.py
           python scripts/44_validate_document_flow.py
