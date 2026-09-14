@@ -21,6 +21,16 @@ Describe 'Admission prompt OpenClaw avant Gateway' {
         $script:Admission | Should -Match ([regex]::Escape("`$ExecutionMode = 'local'"))
     }
 
+    It 'sépare le JSON stdout des diagnostics stderr OpenClaw' {
+        $script:Admission | Should -Not -Match ([regex]::Escape('2>&1'))
+        $script:Admission | Should -Match ([regex]::Escape('1> $StdoutPath 2> $StderrPath'))
+        $script:Admission | Should -Match ([regex]::Escape('$Payload = $StdoutText | ConvertFrom-Json'))
+        $script:Admission | Should -Match ([regex]::Escape("schema_version = '1.2.0'"))
+        $script:Admission | Should -Match ([regex]::Escape('stderr = $StderrText'))
+        $script:Admission | Should -Match ([regex]::Escape('Remove-Item -LiteralPath $StdoutPath'))
+        $script:Admission | Should -Match ([regex]::Escape('Remove-Item -LiteralPath $StderrPath'))
+    }
+
     It 'conserve le vrai gate trois familles dans configure-openclaw' {
         $script:Configure | Should -Match '24_test_openclaw_prompt_admission\.ps1'
         $script:Configure | Should -Match "'chef-operations', 'architecte-solutions', 'ingenieur-devops'"

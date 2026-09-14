@@ -12,6 +12,7 @@ if ($DryRun) {
     Write-Host '[DRY-RUN] Contrôle d admission du prompt full-agent OpenClaw.'
     Write-Host "[DRY-RUN] Agent=$AgentId timeout=${TimeoutSeconds}s."
     Write-Host '[DRY-RUN] Exécuter explicitement via openclaw agent --local: ce gate précède le démarrage du Gateway dans install-full.'
+    Write-Host '[DRY-RUN] Séparer stdout JSON de stderr diagnostic avant tout ConvertFrom-Json.'
     Write-Host '[DRY-RUN] Exiger skills.limits.maxSkillsPromptChars=0 et agents.defaults.skills vide.'
     Write-Host '[DRY-RUN] Utiliser une session fraîche, thinking=off et une réponse déterministe.'
     Write-Host '[DRY-RUN] Exiger PROMPT_ADMISSION_SKILLS_CHARS=0 et refuser toute meta.error, dont context_overflow.'
@@ -213,38 +214,70 @@ $SessionKey = "configure-admission-$Stamp-$AgentId"
 $Expected = "PROMPT_ADMISSION_OK $AgentId"
 $Prompt = "N'utilise aucun outil. Réponds immédiatement en une ligne avec exactement: $Expected"
 $ExecutionMode = 'local'
+$StdoutPath = Join-Path $ProofsRoot ".openclaw_prompt_admission_${Stamp}_${AgentId}.stdout.tmp"
+$StderrPath = Join-Path $ProofsRoot ".openclaw_prompt_admission_${Stamp}_${AgentId}.stderr.tmp"
 
 Write-Host "ADMISSION  Agent=$AgentId modèle=$ModelRef timeout=${TimeoutSeconds}s mode=$ExecutionMode"
 Write-Host "PROMPT_ADMISSION_MODE=$ExecutionMode"
 # Ce gate est exécuté par configure-openclaw avant install/start du Gateway dans
 # install-full. --local évite donc une dépendance circulaire tout en exécutant
 # réellement le même agent, sa configuration, son prompt système et son modèle.
-$Output = & $OpenClaw 'agent' '--local' '--agent' $AgentId `
-    '--session-key' $SessionKey '--message' $Prompt '--thinking' 'off' `
-    '--timeout' ([string]$TimeoutSeconds) '--json' 2>&1
-$ExitCode = $LASTEXITCODE
-$Text = ($Output | Out-String).Trim()
+# OpenClaw 2026.9.4 peut émettre ses diagnostics agent sur stderr même avec
+# --json. stdout reste le contrat JSON machine-readable et doit être parsé seul.
+$StdoutText = ''
+$StderrText = ''
+try {
+    & $OpenClaw 'agent' '--local' '--agent' $AgentId `
+        '--session-key' $SessionKey '--message' $Prompt '--thinking' 'off' `
+        '--timeout' ([string]$TimeoutSeconds) '--json' 1> $StdoutPath 2> $StderrPath
+    $ExitCode = $LASTEXITCODE
+    if (Test-Path -LiteralPath $StdoutPath) {
+        $StdoutText = (Get-Content -Raw -LiteralPath $StdoutPath).Trim()
+    }
+    if (Test-Path -LiteralPath $StderrPath) {
+        $StderrText = (Get-Content -Raw -LiteralPath $StderrPath).Trim()
+    }
+}
+finally {
+    Remove-Item -LiteralPath $StdoutPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $StderrPath -Force -ErrorAction SilentlyContinue
+}
+
+if (-not [string]::IsNullOrWhiteSpace($StderrText)) {
+    Write-Host $StderrText
+}
+
 if ($ExitCode -ne 0) {
     [ordered]@{
-        schema_version = '1.1.0'
+        schema_version = '1.2.0'
         timestamp_utc = [DateTime]::UtcNow.ToString('o')
         execution_mode = $ExecutionMode
         agent = $AgentId
         model_ref = $ModelRef
         exit_code = $ExitCode
-        raw_output = $Text
+        stdout = $StdoutText
+        stderr = $StderrText
     } | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $EvidencePath -Encoding utf8
     Write-Host "PROMPT_ADMISSION_EVIDENCE=$EvidencePath"
     throw "Contrôle d admission OpenClaw en échec processus (code $ExitCode)."
 }
 
 try {
-    $Payload = $Text | ConvertFrom-Json
+    $Payload = $StdoutText | ConvertFrom-Json
 }
 catch {
-    Set-Content -LiteralPath $EvidencePath -Value $Text -Encoding utf8
+    [ordered]@{
+        schema_version = '1.2.0'
+        timestamp_utc = [DateTime]::UtcNow.ToString('o')
+        execution_mode = $ExecutionMode
+        agent = $AgentId
+        model_ref = $ModelRef
+        exit_code = $ExitCode
+        stdout = $StdoutText
+        stderr = $StderrText
+    } | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $EvidencePath -Encoding utf8
     Write-Host "PROMPT_ADMISSION_EVIDENCE=$EvidencePath"
-    throw 'Contrôle d admission OpenClaw: sortie JSON invalide.'
+    throw 'Contrôle d admission OpenClaw: stdout JSON invalide.'
 }
 
 $Payload | ConvertTo-Json -Depth 50 | Set-Content -LiteralPath $EvidencePath -Encoding utf8
