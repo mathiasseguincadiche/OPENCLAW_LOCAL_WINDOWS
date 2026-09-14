@@ -1,40 +1,21 @@
-schema_version: "1.0.0"
+schema_version: "2.0.0"
 platform_version: "0.3.0"
-default: deny
-cloud_required_flags:
-  - cloud_enabled
-  - explicit_reason
-  - budget_ok
-triggers:
-  deep_web_research:
-    allowed_roles: [expert-recherche, chef-operations]
-    preferred_cloud_route: research
-    precondition: local_web_attempted
-  context_overflow:
-    allowed_roles: [chef-operations, architecte-solutions, ingenieur-devops]
-    preferred_cloud_route: frontier-reasoning
-  repeated_local_failure:
-    max_local_attempts: 2
-    require_failure_evidence: true
-  high_impact_decision:
-    require_human_approval: true
-  source_conflict:
-    allowed_roles: [expert-recherche, chef-operations]
-    preferred_cloud_route: research
-    precondition: local_web_sources_conflict
-  independent_final_review:
-    require_human_approval: true
-forbidden_reasons:
-  - web_freshness_only
-  - local_model_is_only_slower
-  - convenience
-  - silent_fallback
-  - missing_local_benchmark
-privacy:
-  send_secrets_to_cloud: false
-  send_private_documents_to_cloud_by_default: false
+
+llm_cloud:
+  supported: false
+  default: deny
+  providers: []
+  escalation_supported: false
+  automatic_fallback: false
+  supported_triggers: []
+  reason: architecture_v2_local_only
+
+remote_information_sources:
+  web_tools_may_be_remote: true
+  reasoning_model_must_be_local: true
+  private_documents_must_not_be_sent_by_default: true
+  secrets_must_not_be_sent: true
+
 logging:
-  record_role: true
-  record_reason: true
-  record_model: true
-  record_cost_when_available: true
+  record_denied_llm_cloud_request: true
+  record_remote_tool_usage_when_available: true
