@@ -68,7 +68,7 @@ Describe 'Admission prompt OpenClaw avant Gateway' {
             'Invoke-ScriptChecked -Path $ConfigureOpenClaw -Description'
         )
         $GatewayIndex = $script:InstallFull.IndexOf(
-            "Invoke-ScriptChecked -Path `$GatewaySupervisor -Parameters"
+            "} -Description 'Installation du superviseur Gateway externe'"
         )
         $ConfigureIndex | Should -BeGreaterOrEqual 0
         $GatewayIndex | Should -BeGreaterThan $ConfigureIndex
