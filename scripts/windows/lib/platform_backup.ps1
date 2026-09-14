@@ -1,10 +1,19 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# OpenClaw reconstruit ce sous-arbre à partir du runtime lock lors de la
-# convergence des plugins. Il contient des junctions/symlinks npm légitimes et
-# ne constitue pas un état utilisateur à restaurer.
-$script:OpenClawBackupExcludedRelativePaths = @('state/npm')
+# OpenClaw 2026.9.4 classe ces sous-arbres du state comme ressources gérées et
+# reconstructibles dans sa propre politique de backup. plugin-skills est un
+# index de junctions/symlinks entièrement généré depuis les métadonnées des
+# plugins actifs. Ils ne constituent donc pas un état durable à restaurer.
+$script:OpenClawBackupExcludedRelativePaths = @(
+    'state/dev',
+    'state/git',
+    'state/npm',
+    'state/npm-runtime',
+    'state/tmp',
+    'state/tools',
+    'state/plugin-skills'
+)
 
 function Test-OpenClawBackupPathExcluded {
     param([Parameter(Mandatory)][string]$LogicalPath)
@@ -182,7 +191,7 @@ function New-OpenClawPreUpgradeBackup {
         }
 
         $Manifest = [ordered]@{
-            schema_version = '1.1.0'
+            schema_version = '1.2.0'
             kind = 'openclaw-local-pre-upgrade-backup'
             created_at_utc = (Get-Date).ToUniversalTime().ToString('o')
             source_root = $PlatformRoot
