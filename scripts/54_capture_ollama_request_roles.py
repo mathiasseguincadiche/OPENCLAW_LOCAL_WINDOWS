@@ -170,9 +170,10 @@ class ShapeProxyHandler(BaseHTTPRequestHandler):
         if request_body:
             headers["Content-Length"] = str(len(request_body))
 
-        connection_class = (
-            http.client.HTTPSConnection if self.upstream.scheme == "https" else http.client.HTTPConnection
-        )
+        if self.upstream.scheme == "https":
+            connection_class = http.client.HTTPSConnection
+        else:
+            connection_class = http.client.HTTPConnection
         connection = connection_class(
             self.upstream.hostname,
             self.upstream.port,
@@ -186,7 +187,8 @@ class ShapeProxyHandler(BaseHTTPRequestHandler):
             if record is not None:
                 record["response_status"] = response.status
                 if response.status >= 400:
-                    record["response_error"] = response_body.decode("utf-8", errors="replace")[:4000]
+                    error_text = response_body.decode("utf-8", errors="replace")
+                    record["response_error"] = error_text[:4000]
                 self._append_record(record)
 
             self.send_response(response.status, response.reason)
@@ -201,11 +203,12 @@ class ShapeProxyHandler(BaseHTTPRequestHandler):
             if response_body:
                 self.wfile.write(response_body)
             self.close_connection = True
-        except Exception as exc:  # noqa: BLE001 - diagnostic proxy must record forwarding failures
+        except Exception as exc:
             if record is not None:
                 record["proxy_error"] = f"{type(exc).__name__}: {exc}"
                 self._append_record(record)
-            error_body = json.dumps({"error": f"diagnostic proxy failure: {exc}"}).encode("utf-8")
+            error_payload = {"error": f"diagnostic proxy failure: {exc}"}
+            error_body = json.dumps(error_payload).encode("utf-8")
             self.send_response(502, "Bad Gateway")
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(error_body)))
