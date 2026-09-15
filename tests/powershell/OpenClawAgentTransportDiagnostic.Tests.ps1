@@ -38,6 +38,19 @@ Describe 'OpenClaw agent transport diagnostic' {
         $Diagnostic | Should -Not -Match '\$Records\s*=\s*if \(Test-Path -LiteralPath \$CapturePath\)'
     }
 
+    It 'isolates the local agent state from a running canonical Gateway' {
+        $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+        $Diagnostic = Get-Content -Raw -LiteralPath (
+            Join-Path $RepoRoot 'scripts\windows\27_diagnose_openclaw_agent_transport.ps1'
+        )
+
+        $Diagnostic | Should -Match '\$DiagnosticStateDir\s*=\s*Join-Path \$ProofsRoot "\.openclaw_transport_state_\$\{Stamp\}"'
+        $Diagnostic | Should -Match "OPENCLAW_STATE_DIR' -Value \$DiagnosticStateDir"
+        $Diagnostic | Should -Not -Match "OPENCLAW_STATE_DIR' -Value \$CanonicalStateDir"
+        $Diagnostic | Should -Match 'TRANSPORT_CAPTURE_STATE_DIR='
+        $Diagnostic | Should -Match 'Remove-Item -LiteralPath \$DiagnosticStateDir -Recurse -Force'
+    }
+
     It 'keeps the canonical OpenClaw config untouched' {
         $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
         $Diagnostic = Get-Content -Raw -LiteralPath (
