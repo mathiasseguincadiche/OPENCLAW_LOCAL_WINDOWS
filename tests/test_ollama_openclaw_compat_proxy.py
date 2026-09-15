@@ -96,6 +96,15 @@ def test_proxy_contract_is_loopback_and_prompt_text_is_not_part_of_health() -> N
     assert module.UPSTREAM_URL == "http://127.0.0.1:11434"
     assert module.HEALTH_PATH == "/__openclaw_compat_health"
     assert module.STRICT_MODEL == STRICT_MODEL
-    assert module.safe_response_content_type("application/json; charset=utf-8") == "application/json"
-    assert module.safe_response_content_type("application/x-ndjson") == "application/x-ndjson"
-    assert module.safe_response_content_type("text/plain\r\nInjected: yes") == "application/octet-stream"
+    assert (
+        module.safe_response_content_type("application/json; charset=utf-8")
+        == "application/json"
+    )
+    assert (
+        module.safe_response_content_type("application/x-ndjson")
+        == "application/x-ndjson"
+    )
+    assert (
+        module.safe_response_content_type("text/plain\r\nInjected: yes")
+        == "application/octet-stream"
+    )
