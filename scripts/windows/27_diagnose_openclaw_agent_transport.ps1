@@ -248,17 +248,18 @@ $AgentStderr = if (Test-Path -LiteralPath $AgentStderrPath) {
     Get-Content -Raw -LiteralPath $AgentStderrPath
 }
 else { '' }
-$Records = if (Test-Path -LiteralPath $CapturePath) {
-    @(
+$Records = @(
+    if (Test-Path -LiteralPath $CapturePath) {
         Get-Content -LiteralPath $CapturePath |
             Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
             ForEach-Object { $_ | ConvertFrom-Json }
-    )
-}
-else { @() }
+    }
+)
 
 $PrimaryModel = if ($ModelRef.StartsWith('ollama/')) { $ModelRef.Substring(7) } else { $ModelRef }
 $PrimaryRecords = @($Records | Where-Object { [string]$_.request.model -eq $PrimaryModel })
+$RecordCount = @($Records).Count
+$PrimaryRecordCount = @($PrimaryRecords).Count
 
 [ordered]@{
     schema_version = '1.0.0'
@@ -270,8 +271,8 @@ $PrimaryRecords = @($Records | Where-Object { [string]$_.request.model -eq $Prim
     resolved_config_path = $ResolvedConfigPath
     resolved_ollama_base_url = $ResolvedBaseUrl
     openclaw_exit_code = $ExitCode
-    request_count = $Records.Count
-    primary_request_count = $PrimaryRecords.Count
+    request_count = $RecordCount
+    primary_request_count = $PrimaryRecordCount
     capture_path = $CapturePath
     agent_stdout_path = $AgentStdoutPath
     agent_stderr_path = $AgentStderrPath
@@ -286,13 +287,13 @@ foreach ($Record in $Records) {
 }
 
 Write-Host "TRANSPORT_CAPTURE_OPENCLAW_EXIT_CODE=$ExitCode"
-Write-Host "TRANSPORT_CAPTURE_REQUESTS=$($Records.Count)"
-Write-Host "TRANSPORT_CAPTURE_PRIMARY_REQUESTS=$($PrimaryRecords.Count)"
+Write-Host "TRANSPORT_CAPTURE_REQUESTS=$RecordCount"
+Write-Host "TRANSPORT_CAPTURE_PRIMARY_REQUESTS=$PrimaryRecordCount"
 Write-Host "TRANSPORT_CAPTURE_EVIDENCE=$SummaryPath"
 Write-Host "TRANSPORT_CAPTURE_STDOUT=$AgentStdoutPath"
 Write-Host "TRANSPORT_CAPTURE_STDERR=$AgentStderrPath"
 
-if ($Records.Count -eq 0) {
+if ($RecordCount -eq 0) {
     if ($AgentStderr) {
         Write-Host 'TRANSPORT_CAPTURE_STDERR_TAIL_BEGIN'
         Write-Host $AgentStderr.Substring([Math]::Max(0, $AgentStderr.Length - [Math]::Min(4000, $AgentStderr.Length)))
