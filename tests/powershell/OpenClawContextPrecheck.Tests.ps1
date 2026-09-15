@@ -91,6 +91,22 @@ Describe 'Régression OpenClaw context precheck local' {
         $script:Admission | Should -Match 'Contrôle d admission OpenClaw refusé'
     }
 
+    It 'isole chaque admission locale d un Gateway canonique déjà actif' {
+        $script:Admission | Should -Match 'openclaw_prompt_admission_state_'
+        $script:Admission | Should -Match "'OPENCLAW_CONFIG_PATH'"
+        $script:Admission | Should -Match "'OPENCLAW_STATE_DIR'"
+        $script:Admission | Should -Match "'OPENCLAW_CONFIG_READONLY'"
+        $script:Admission | Should -Match "'config' 'file' '--json'"
+        $script:Admission | Should -Match 'PROMPT_ADMISSION_CONFIG_PATH='
+        $script:Admission | Should -Match 'PROMPT_ADMISSION_STATE_DIR='
+        $script:Admission | Should -Match (
+            'Remove-Item -LiteralPath \$AdmissionStateDir -Recurse -Force'
+        )
+        $script:Admission | Should -Not -Match (
+            '\$env:OPENCLAW_STATE_DIR\s*=\s*\$CanonicalStateDir'
+        )
+    }
+
     It 'lit le roster canonique 2026.9.x tout en gardant la compatibilité list' {
         $script:E2E | Should -Match "PSObject\.Properties\['entries'\]"
         $script:E2E | Should -Match "PSObject\.Properties\['list'\]"

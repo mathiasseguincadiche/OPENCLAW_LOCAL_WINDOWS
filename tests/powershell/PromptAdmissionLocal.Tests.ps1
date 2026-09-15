@@ -21,11 +21,11 @@ Describe 'Admission prompt OpenClaw avant Gateway' {
         $script:Admission | Should -Match ([regex]::Escape("`$ExecutionMode = 'local'"))
     }
 
-    It 'sépare le JSON stdout des diagnostics stderr OpenClaw' {
-        $script:Admission | Should -Not -Match ([regex]::Escape('2>&1'))
+    It 'sépare le JSON stdout des diagnostics stderr de l exécution agent' {
+        $script:Admission | Should -Match ([regex]::Escape("& `$OpenClaw 'agent' '--local' '--agent'"))
         $script:Admission | Should -Match ([regex]::Escape('1> $StdoutPath 2> $StderrPath'))
         $script:Admission | Should -Match ([regex]::Escape('$Payload = $StdoutText | ConvertFrom-Json'))
-        $script:Admission | Should -Match ([regex]::Escape("schema_version = '1.3.0'"))
+        $script:Admission | Should -Match ([regex]::Escape("schema_version = '1.4.0'"))
         $script:Admission | Should -Match ([regex]::Escape('stderr = $StderrText'))
         $script:Admission | Should -Match ([regex]::Escape('Remove-Item -LiteralPath $StdoutPath'))
         $script:Admission | Should -Match ([regex]::Escape('Remove-Item -LiteralPath $StderrPath'))
@@ -63,7 +63,7 @@ Describe 'Admission prompt OpenClaw avant Gateway' {
         $script:Configure | Should -Match "'chef-operations', 'architecte-solutions', 'ingenieur-devops'"
     }
 
-    It 'documente explicitement que le gate précède le superviseur Gateway externe dans install-full' {
+    It 'garde l ordre install-full et rend le gate sûr avec un Gateway déjà actif' {
         $ConfigureIndex = $script:InstallFull.IndexOf(
             'Invoke-ScriptChecked -Path $ConfigureOpenClaw -Description'
         )
@@ -72,6 +72,7 @@ Describe 'Admission prompt OpenClaw avant Gateway' {
         )
         $ConfigureIndex | Should -BeGreaterOrEqual 0
         $GatewayIndex | Should -BeGreaterThan $ConfigureIndex
-        $script:Admission | Should -Match 'précède le démarrage du Gateway'
+        $script:Admission | Should -Match 'state temporaire isolé du Gateway canonique'
+        $script:Admission | Should -Match 'Gateway déjà actif'
     }
 }
