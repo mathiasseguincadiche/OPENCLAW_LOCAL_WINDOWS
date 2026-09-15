@@ -173,6 +173,13 @@ function Install-OllamaCompatSupervisor {
 }
 
 function Start-OllamaCompatSupervisor {
+    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'None')]
+    param()
+
+    if (-not $PSCmdlet.ShouldProcess($TaskName, 'Start Ollama compatibility supervisor')) {
+        return
+    }
+
     $Task = Get-ScheduledTask -TaskName $TaskName -ErrorAction Stop
     if ([string]$Task.State -ne 'Running') {
         Start-ScheduledTask -TaskName $TaskName -ErrorAction Stop
@@ -191,6 +198,13 @@ function Start-OllamaCompatSupervisor {
 }
 
 function Stop-OllamaCompatSupervisor {
+    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'None')]
+    param()
+
+    if (-not $PSCmdlet.ShouldProcess($TaskName, 'Stop Ollama compatibility supervisor')) {
+        return
+    }
+
     $Task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
     if (-not $Task) {
         Write-Host "INFO Superviseur Ollama compat absent: $TaskName."
