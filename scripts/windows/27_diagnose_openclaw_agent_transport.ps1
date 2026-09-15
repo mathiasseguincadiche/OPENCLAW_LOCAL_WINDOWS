@@ -1,5 +1,6 @@
 [CmdletBinding()]
 param(
+    [switch]$DryRun,
     [string]$AgentId = 'ingenieur-devops',
     [ValidateRange(30, 300)][int]$TimeoutSeconds = 120,
     [ValidateRange(1025, 65535)][int]$ProxyPort = 11435
@@ -64,7 +65,7 @@ function Get-AgentEntry {
     throw "Agent absent de la configuration OpenClaw: $Id"
 }
 
-function Write-ProcessEnvironmentValue {
+function Set-ProcessEnvironmentValue {
     param(
         [Parameter(Mandatory)][string]$Name,
         [AllowNull()][string]$Value
@@ -82,6 +83,18 @@ $PlatformRoot = Get-PlatformRoot
 $StateDir = Join-Path $PlatformRoot 'state'
 $ProofsRoot = Join-Path $PlatformRoot 'proofs'
 $ConfigPath = Join-Path $StateDir 'openclaw.json'
+$ProxyUrl = "http://127.0.0.1:$ProxyPort"
+
+if ($DryRun) {
+    Write-Host '[DRY-RUN] Diagnostic ciblé du transport full-agent OpenClaw -> proxy local -> Ollama.'
+    Write-Host "[DRY-RUN] Agent=$AgentId timeout=${TimeoutSeconds}s proxy=$ProxyUrl."
+    Write-Host "[DRY-RUN] Config canonique attendue: $ConfigPath"
+    Write-Host '[DRY-RUN] Une copie temporaire de la config sera créée; state/openclaw.json ne sera pas modifié.'
+    Write-Host '[DRY-RUN] Vérifier la config effectivement résolue et la baseUrl proxy avant l appel agent.'
+    Write-Host '[DRY-RUN] Conserver stdout, stderr, capture proxy et résumé JSON même si aucune requête /api/chat n atteint le proxy.'
+    exit 0
+}
+
 $OpenClaw = Get-OpenClawCommand -PlatformRoot $PlatformRoot
 $Python = Get-ClawLocalManagedPython -PlatformRoot $PlatformRoot
 
@@ -113,7 +126,6 @@ if (Get-NetTCPConnection -State Listen -LocalPort $ProxyPort -ErrorAction Silent
 
 New-Item -ItemType Directory -Path $ProofsRoot -Force | Out-Null
 $Stamp = Get-Date -Format 'yyyyMMdd_HHmmssfff'
-$ProxyUrl = "http://127.0.0.1:$ProxyPort"
 $TempConfigPath = Join-Path $ProofsRoot ".openclaw_transport_${Stamp}.json"
 $CapturePath = Join-Path $ProofsRoot "openclaw_transport_${Stamp}.jsonl"
 $SummaryPath = Join-Path $ProofsRoot "openclaw_transport_${Stamp}.summary.json"
@@ -178,11 +190,11 @@ try {
         throw "Proxy de diagnostic non prêt. stderr=$ProxyError"
     }
 
-    Write-ProcessEnvironmentValue -Name 'OPENCLAW_CONFIG_PATH' -Value $TempConfigPath
-    Write-ProcessEnvironmentValue -Name 'OPENCLAW_STATE_DIR' -Value $StateDir
-    Write-ProcessEnvironmentValue -Name 'OLLAMA_API_KEY' -Value 'ollama-local'
-    Write-ProcessEnvironmentValue -Name 'OPENCLAW_LOCAL_CLOUD_ENABLED' -Value 'false'
-    Write-ProcessEnvironmentValue -Name 'OPENCLAW_CONFIG_READONLY' -Value '1'
+    Set-ProcessEnvironmentValue -Name 'OPENCLAW_CONFIG_PATH' -Value $TempConfigPath
+    Set-ProcessEnvironmentValue -Name 'OPENCLAW_STATE_DIR' -Value $StateDir
+    Set-ProcessEnvironmentValue -Name 'OLLAMA_API_KEY' -Value 'ollama-local'
+    Set-ProcessEnvironmentValue -Name 'OPENCLAW_LOCAL_CLOUD_ENABLED' -Value 'false'
+    Set-ProcessEnvironmentValue -Name 'OPENCLAW_CONFIG_READONLY' -Value '1'
 
     $ConfigFileRaw = (& $OpenClaw 'config' 'file' '--json' 2>&1 | Out-String).Trim()
     if ($LASTEXITCODE -ne 0) {
@@ -217,7 +229,7 @@ try {
 }
 finally {
     foreach ($Name in $OriginalEnv.Keys) {
-        Write-ProcessEnvironmentValue -Name $Name -Value $OriginalEnv[$Name]
+        Set-ProcessEnvironmentValue -Name $Name -Value $OriginalEnv[$Name]
     }
     if ($ProxyProcess -and -not $ProxyProcess.HasExited) {
         Stop-Process -Id $ProxyProcess.Id -Force -ErrorAction SilentlyContinue
