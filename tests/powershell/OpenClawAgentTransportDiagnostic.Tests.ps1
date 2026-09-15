@@ -26,6 +26,18 @@ Describe 'OpenClaw agent transport diagnostic' {
         $Diagnostic | Should -Not -Match 'Remove-Item -LiteralPath \$AgentStderrPath'
     }
 
+    It 'keeps exactly one captured request as an array under strict mode' {
+        $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+        $Diagnostic = Get-Content -Raw -LiteralPath (
+            Join-Path $RepoRoot 'scripts\windows\27_diagnose_openclaw_agent_transport.ps1'
+        )
+
+        $Diagnostic | Should -Match '(?s)\$Records\s*=\s*@\(\s*if \(Test-Path -LiteralPath \$CapturePath\)'
+        $Diagnostic | Should -Match '\$RecordCount\s*=\s*@\(\$Records\)\.Count'
+        $Diagnostic | Should -Match '\$PrimaryRecordCount\s*=\s*@\(\$PrimaryRecords\)\.Count'
+        $Diagnostic | Should -Not -Match '\$Records\s*=\s*if \(Test-Path -LiteralPath \$CapturePath\)'
+    }
+
     It 'keeps the canonical OpenClaw config untouched' {
         $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
         $Diagnostic = Get-Content -Raw -LiteralPath (
