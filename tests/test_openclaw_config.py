@@ -24,6 +24,10 @@ EXPECTED_MODELS = {
     "gemma4:12b-it-q4_K_M",
     MINISTRAL,
 }
+EXPECTED_DIRECT_OLLAMA_MODELS = {
+    "qwen3.5:9b-q4_K_M",
+    "gemma4:12b-it-q4_K_M",
+}
 EXPECTED_VULKAN_MODELS = {
     "gemma4:12b-it-q4_K_M",
     MINISTRAL,
@@ -90,7 +94,8 @@ def test_patch_materializes_all_agents_without_cloud_fallback() -> None:
         assert entry["workspace"].replace("\\", "/").endswith(
             f"workspaces/{agent_id}"
         )
-        assert entry["model"]["primary"].startswith("ollama/")
+        primary_provider = entry["model"]["primary"].split("/", 1)[0]
+        assert primary_provider in {"ollama", "ollama-ministral"}
         assert all(
             model.startswith("ollama/")
             for model in entry["model"]["fallbacks"]
@@ -159,28 +164,49 @@ def test_direct_benchmark_context_stays_8k_while_openclaw_agents_get_16k() -> No
         assert OPENCLAW_AGENT_CONTEXT_TOKENS in model["qualification_context_tokens"]
 
 
-def test_provider_exposes_exactly_three_b580_sized_models() -> None:
+def test_nominal_ollama_models_are_split_across_direct_and_compat_providers() -> None:
     patch = build_openclaw_patch(Path("C:/OpenClawLocal"))
-    provider = patch["models"]["providers"]["ollama"]
-    assert provider["api"] == "ollama"
-    by_id = {model["id"]: model for model in provider["models"]}
-    assert set(by_id) == EXPECTED_MODELS
-    assert by_id["qwen3.5:9b-q4_K_M"]["input"] == ["text", "image"]
-    assert by_id["gemma4:12b-it-q4_K_M"]["input"] == ["text", "image"]
-    assert by_id[MINISTRAL]["input"] == ["text"]
+    providers = patch["models"]["providers"]
+    assert set(providers) == {"ollama", "ollama-ministral"}
+
+    direct = providers["ollama"]
+    compat = providers["ollama-ministral"]
+    assert direct["api"] == "ollama"
+    assert direct["baseUrl"] == "http://127.0.0.1:11434"
+    assert compat["api"] == "ollama"
+    assert compat["baseUrl"] == "http://127.0.0.1:11436"
+    assert direct["apiKey"] == "ollama-local"
+    assert compat["apiKey"] == "ollama-local"
+
+    direct_by_id = {model["id"]: model for model in direct["models"]}
+    compat_by_id = {model["id"]: model for model in compat["models"]}
+    assert set(direct_by_id) == EXPECTED_DIRECT_OLLAMA_MODELS
+    assert set(compat_by_id) == {MINISTRAL}
+    assert set(direct_by_id) | set(compat_by_id) == EXPECTED_MODELS
+    assert direct_by_id["qwen3.5:9b-q4_K_M"]["input"] == ["text", "image"]
+    assert direct_by_id["gemma4:12b-it-q4_K_M"]["input"] == ["text", "image"]
+    assert compat_by_id[MINISTRAL]["input"] == ["text"]
+
+    all_models = [*direct["models"], *compat["models"]]
     assert all(
         model["contextWindow"] == OPENCLAW_AGENT_CONTEXT_TOKENS
-        for model in provider["models"]
+        for model in all_models
     )
     assert all(
         model["contextTokens"] == OPENCLAW_AGENT_CONTEXT_TOKENS
-        for model in provider["models"]
+        for model in all_models
     )
     assert all(
         model["params"]["num_ctx"] == OPENCLAW_AGENT_CONTEXT_TOKENS
-        for model in provider["models"]
+        for model in all_models
     )
-    assert all("metadata" not in model for model in provider["models"])
+    assert all("metadata" not in model for model in all_models)
+
+    devops = _entries_by_id(patch)["ingenieur-devops"]["model"]
+    assert devops == {
+        "primary": f"ollama-ministral/{MINISTRAL}",
+        "fallbacks": ["ollama/qwen3.5:9b-q4_K_M"],
+    }
 
 
 def test_multimodal_defaults_use_qwen35_then_gemma4() -> None:
@@ -258,7 +284,7 @@ def test_patch_matches_pinned_openclaw_schema_surface() -> None:
     assert agents["defaults"]["systemAgent"] == {"agentId": "chef-operations"}
     assert agents["defaults"]["sessionStore"] == {"agentId": "chef-operations"}
 
-    models = patch["models"]["providers"]["ollama"]["models"]
-    for model in models:
-        assert set(model) <= PINNED_MODEL_KEYS
-        assert "metadata" not in model
+    for provider in patch["models"]["providers"].values():
+        for model in provider["models"]:
+            assert set(model) <= PINNED_MODEL_KEYS
+            assert "metadata" not in model
