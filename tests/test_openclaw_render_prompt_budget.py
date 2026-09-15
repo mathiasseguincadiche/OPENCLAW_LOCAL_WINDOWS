@@ -48,20 +48,26 @@ def test_renderer_explicitly_disables_unbounded_skill_cards(tmp_path: Path) -> N
 def test_prompt_budget_fix_preserves_local_models_and_tool_policy(tmp_path: Path) -> None:
     patch = _render_patch(tmp_path)
 
-    providers = patch["models"]
-    assert isinstance(providers, dict)
-    provider_map = providers["providers"]
+    models_section = patch["models"]
+    assert isinstance(models_section, dict)
+    provider_map = models_section["providers"]
     assert isinstance(provider_map, dict)
-    ollama = provider_map["ollama"]
-    assert isinstance(ollama, dict)
-    models = ollama["models"]
-    assert isinstance(models, list)
-    assert len(models) == 3
+    assert set(provider_map) == {"ollama", "ollama-ministral"}
+
+    all_models: list[dict[str, object]] = []
+    for provider_id in ("ollama", "ollama-ministral"):
+        provider = provider_map[provider_id]
+        assert isinstance(provider, dict)
+        models = provider["models"]
+        assert isinstance(models, list)
+        assert all(isinstance(model, dict) for model in models)
+        all_models.extend(models)
+
+    assert len(all_models) == 3
     assert all(
-        isinstance(model, dict)
-        and model.get("contextWindow") == 16384
+        model.get("contextWindow") == 16384
         and model.get("contextTokens") == 16384
-        for model in models
+        for model in all_models
     )
 
     tools = patch["tools"]
