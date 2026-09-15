@@ -80,9 +80,9 @@ function Invoke-ProcessEnvironmentValue {
 }
 
 $PlatformRoot = Get-PlatformRoot
-$StateDir = Join-Path $PlatformRoot 'state'
+$CanonicalStateDir = Join-Path $PlatformRoot 'state'
 $ProofsRoot = Join-Path $PlatformRoot 'proofs'
-$ConfigPath = Join-Path $StateDir 'openclaw.json'
+$ConfigPath = Join-Path $CanonicalStateDir 'openclaw.json'
 $ProxyUrl = "http://127.0.0.1:$ProxyPort"
 
 if ($DryRun) {
@@ -90,6 +90,7 @@ if ($DryRun) {
     Write-Host "[DRY-RUN] Agent=$AgentId timeout=${TimeoutSeconds}s proxy=$ProxyUrl."
     Write-Host "[DRY-RUN] Config canonique attendue: $ConfigPath"
     Write-Host '[DRY-RUN] Une copie temporaire de la config sera créée; state/openclaw.json ne sera pas modifié.'
+    Write-Host '[DRY-RUN] OPENCLAW_STATE_DIR pointera vers un état temporaire isolé pour ne pas entrer en conflit avec un Gateway actif.'
     Write-Host '[DRY-RUN] Vérifier la config effectivement résolue et la baseUrl proxy avant l appel agent.'
     Write-Host '[DRY-RUN] Conserver stdout, stderr, capture proxy et résumé JSON même si aucune requête /api/chat n atteint le proxy.'
     exit 0
@@ -127,6 +128,7 @@ if (Get-NetTCPConnection -State Listen -LocalPort $ProxyPort -ErrorAction Silent
 New-Item -ItemType Directory -Path $ProofsRoot -Force | Out-Null
 $Stamp = Get-Date -Format 'yyyyMMdd_HHmmssfff'
 $TempConfigPath = Join-Path $ProofsRoot ".openclaw_transport_${Stamp}.json"
+$DiagnosticStateDir = Join-Path $ProofsRoot ".openclaw_transport_state_${Stamp}"
 $CapturePath = Join-Path $ProofsRoot "openclaw_transport_${Stamp}.jsonl"
 $SummaryPath = Join-Path $ProofsRoot "openclaw_transport_${Stamp}.summary.json"
 $ProxyStdoutPath = Join-Path $ProofsRoot ".openclaw_transport_proxy_${Stamp}.stdout.tmp"
@@ -137,6 +139,7 @@ $SessionKey = "transport-capture-$Stamp-$AgentId"
 $Expected = "TRANSPORT_CAPTURE_OK $AgentId"
 $Prompt = "N'utilise aucun outil. Réponds immédiatement en une ligne avec exactement: $Expected"
 
+New-Item -ItemType Directory -Path $DiagnosticStateDir -Force | Out-Null
 $TempConfig = Get-Content -Raw -LiteralPath $ConfigPath | ConvertFrom-Json
 $TempConfig.models.providers.ollama.baseUrl = $ProxyUrl
 $TempConfig | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath $TempConfigPath -Encoding utf8
@@ -191,7 +194,7 @@ try {
     }
 
     Invoke-ProcessEnvironmentValue -Name 'OPENCLAW_CONFIG_PATH' -Value $TempConfigPath
-    Invoke-ProcessEnvironmentValue -Name 'OPENCLAW_STATE_DIR' -Value $StateDir
+    Invoke-ProcessEnvironmentValue -Name 'OPENCLAW_STATE_DIR' -Value $DiagnosticStateDir
     Invoke-ProcessEnvironmentValue -Name 'OLLAMA_API_KEY' -Value 'ollama-local'
     Invoke-ProcessEnvironmentValue -Name 'OPENCLAW_LOCAL_CLOUD_ENABLED' -Value 'false'
     Invoke-ProcessEnvironmentValue -Name 'OPENCLAW_CONFIG_READONLY' -Value '1'
@@ -211,6 +214,7 @@ try {
     Write-Host "TRANSPORT_CAPTURE_AGENT=$AgentId"
     Write-Host "TRANSPORT_CAPTURE_REQUESTED_MODEL=$ModelRef"
     Write-Host "TRANSPORT_CAPTURE_CONFIG_PATH=$ResolvedConfigPath"
+    Write-Host "TRANSPORT_CAPTURE_STATE_DIR=$DiagnosticStateDir"
     Write-Host "TRANSPORT_CAPTURE_BASE_URL=$ResolvedBaseUrl"
     Write-Host "TRANSPORT_CAPTURE_PROXY=$ProxyUrl"
     Write-Host "TRANSPORT_CAPTURE_SESSION=$SessionKey"
@@ -236,6 +240,7 @@ finally {
         $ProxyProcess.WaitForExit(5000) | Out-Null
     }
     Remove-Item -LiteralPath $TempConfigPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $DiagnosticStateDir -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $ProxyStdoutPath -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $ProxyStderrPath -Force -ErrorAction SilentlyContinue
 }
@@ -262,12 +267,13 @@ $RecordCount = @($Records).Count
 $PrimaryRecordCount = @($PrimaryRecords).Count
 
 [ordered]@{
-    schema_version = '1.0.0'
+    schema_version = '1.1.0'
     timestamp_utc = [DateTime]::UtcNow.ToString('o')
     agent = $AgentId
     requested_model_ref = $ModelRef
     requested_model = $PrimaryModel
     session_key = $SessionKey
+    diagnostic_state_dir = $DiagnosticStateDir
     resolved_config_path = $ResolvedConfigPath
     resolved_ollama_base_url = $ResolvedBaseUrl
     openclaw_exit_code = $ExitCode
