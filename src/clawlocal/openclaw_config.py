@@ -6,6 +6,8 @@ from typing import Any
 from clawlocal.config import load_contract
 
 SUPPORTED_BACKENDS = ("ollama-vulkan", "b580-hybrid")
+OLLAMA_PROVIDER_ID = "ollama"
+OLLAMA_COMPAT_PROVIDER_ID = "ollama-ministral"
 INTEL_VULKAN_PROVIDER_ID = "intel-vulkan"
 SYSTEM_AGENT_ID = "chef-operations"
 OPTIONAL_BOOTSTRAP_FILES = ["SOUL.md", "USER.md", "HEARTBEAT.md", "IDENTITY.md"]
@@ -37,6 +39,44 @@ def _resolved_model_backend(
     return str(resolved)
 
 
+def _ollama_compat_config(backends: dict[str, Any]) -> dict[str, Any]:
+    ollama_backend = backends["backends"]["ollama-vulkan"]
+    compat = ollama_backend.get("openclaw_compat")
+    if not isinstance(compat, dict):
+        raise ValueError("Contrat openclaw_compat absent pour ollama-vulkan")
+    provider_id = str(compat.get("provider_id", ""))
+    endpoint = str(compat.get("endpoint", ""))
+    upstream = str(compat.get("upstream", ""))
+    aliases = {str(alias) for alias in compat.get("normalize_aliases", [])}
+    if provider_id != OLLAMA_COMPAT_PROVIDER_ID:
+        raise ValueError(f"Provider compat Ollama inattendu: {provider_id}")
+    if not endpoint.startswith("http://127.0.0.1:"):
+        raise ValueError(f"Endpoint compat Ollama non loopback: {endpoint}")
+    if upstream != str(ollama_backend["endpoint"]):
+        raise ValueError("Le proxy compat Ollama doit pointer vers l endpoint Ollama nominal")
+    if not aliases:
+        raise ValueError("Aucun alias n est déclaré pour la compatibilité Ollama")
+    return {
+        "provider_id": provider_id,
+        "endpoint": endpoint,
+        "upstream": upstream,
+        "aliases": aliases,
+    }
+
+
+def _ollama_provider_id_for_alias(
+    alias: str,
+    backends: dict[str, Any],
+    backend_id: str,
+) -> str:
+    if backend_id != "ollama-vulkan":
+        return OLLAMA_PROVIDER_ID
+    compat = _ollama_compat_config(backends)
+    if alias in compat["aliases"]:
+        return str(compat["provider_id"])
+    return OLLAMA_PROVIDER_ID
+
+
 def _backend_ref(
     alias: str,
     catalog: dict[str, Any],
@@ -46,7 +86,8 @@ def _backend_ref(
     model = catalog["models"][alias]
     resolved_backend = _resolved_model_backend(alias, backends, backend_id)
     if resolved_backend == "ollama-vulkan":
-        return f"ollama/{_runtime_id(model, resolved_backend)}"
+        provider_id = _ollama_provider_id_for_alias(alias, backends, backend_id)
+        return f"{provider_id}/{_runtime_id(model, resolved_backend)}"
     if resolved_backend == "llama-cpp-vulkan":
         return f"{INTEL_VULKAN_PROVIDER_ID}/{_runtime_id(model, resolved_backend)}"
     raise ValueError(f"Backend modèle non supporté: {resolved_backend}")
@@ -102,10 +143,15 @@ def _openclaw_agent_context_tokens(
     return context_tokens
 
 
-def _ollama_models(catalog: dict[str, Any]) -> list[dict[str, Any]]:
+def _ollama_models(
+    catalog: dict[str, Any],
+    aliases: set[str] | None = None,
+) -> list[dict[str, Any]]:
     models: list[dict[str, Any]] = []
-    for model in catalog["models"].values():
+    for alias, model in catalog["models"].items():
         if model["provider"] != "ollama":
+            continue
+        if aliases is not None and alias not in aliases:
             continue
         context_tokens = _openclaw_agent_context_tokens(catalog, model)
         models.append(
@@ -122,6 +168,20 @@ def _ollama_models(catalog: dict[str, Any]) -> list[dict[str, Any]]:
             }
         )
     return models
+
+
+def _ollama_provider(
+    catalog: dict[str, Any],
+    base_url: str = "http://127.0.0.1:11434",
+    aliases: set[str] | None = None,
+) -> dict[str, Any]:
+    return {
+        "baseUrl": base_url,
+        "apiKey": "ollama-local",
+        "api": "ollama",
+        "timeoutSeconds": 300,
+        "models": _ollama_models(catalog, aliases=aliases),
+    }
 
 
 def _llamacpp_models(
@@ -160,16 +220,6 @@ def _llamacpp_models(
     return models
 
 
-def _ollama_provider(catalog: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "baseUrl": "http://127.0.0.1:11434",
-        "apiKey": "ollama-local",
-        "api": "ollama",
-        "timeoutSeconds": 300,
-        "models": _ollama_models(catalog),
-    }
-
-
 def _llamacpp_provider(
     catalog: dict[str, Any],
     backend: dict[str, Any],
@@ -198,10 +248,30 @@ def _model_providers(
     backends: dict[str, Any],
     backend_id: str,
 ) -> dict[str, Any]:
-    providers: dict[str, Any] = {"ollama": _ollama_provider(catalog)}
     configured = backends["backends"]
     if backend_id == "ollama-vulkan":
-        return providers
+        compat = _ollama_compat_config(backends)
+        compat_aliases = set(compat["aliases"])
+        direct_aliases = set(catalog["models"]) - compat_aliases
+        return {
+            OLLAMA_PROVIDER_ID: _ollama_provider(
+                catalog,
+                base_url=str(configured["ollama-vulkan"]["endpoint"]),
+                aliases=direct_aliases,
+            ),
+            str(compat["provider_id"]): _ollama_provider(
+                catalog,
+                base_url=str(compat["endpoint"]),
+                aliases=compat_aliases,
+            ),
+        }
+
+    providers: dict[str, Any] = {
+        OLLAMA_PROVIDER_ID: _ollama_provider(
+            catalog,
+            base_url=str(configured["ollama-vulkan"]["endpoint"]),
+        )
+    }
     if backend_id == "b580-hybrid":
         profile = configured["b580-hybrid"]
         vulkan_aliases = {
