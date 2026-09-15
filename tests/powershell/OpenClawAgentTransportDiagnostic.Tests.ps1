@@ -45,8 +45,8 @@ Describe 'OpenClaw agent transport diagnostic' {
         )
 
         $Diagnostic | Should -Match '\$DiagnosticStateDir\s*=\s*Join-Path \$ProofsRoot "\.openclaw_transport_state_\$\{Stamp\}"'
-        $Diagnostic | Should -Match "OPENCLAW_STATE_DIR' -Value \$DiagnosticStateDir"
-        $Diagnostic | Should -Not -Match "OPENCLAW_STATE_DIR' -Value \$CanonicalStateDir"
+        $Diagnostic | Should -Match ([regex]::Escape("Invoke-ProcessEnvironmentValue -Name 'OPENCLAW_STATE_DIR' -Value `$DiagnosticStateDir"))
+        $Diagnostic | Should -Not -Match ([regex]::Escape("Invoke-ProcessEnvironmentValue -Name 'OPENCLAW_STATE_DIR' -Value `$CanonicalStateDir"))
         $Diagnostic | Should -Match 'TRANSPORT_CAPTURE_STATE_DIR='
         $Diagnostic | Should -Match 'Remove-Item -LiteralPath \$DiagnosticStateDir -Recurse -Force'
     }
