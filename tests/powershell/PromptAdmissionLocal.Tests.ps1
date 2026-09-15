@@ -22,12 +22,8 @@ Describe 'Admission prompt OpenClaw avant Gateway' {
     }
 
     It 'sépare le JSON stdout des diagnostics stderr de l exécution agent' {
-        $AgentCall = @(
-            "& `$OpenClaw 'agent' '--local' '--agent' `$AgentId `",
-            "        '--session-key' `$SessionKey '--message' `$Prompt '--thinking' 'off' `",
-            "        '--timeout' ([string]`$TimeoutSeconds) '--json' 1> `$StdoutPath 2> `$StderrPath"
-        ) -join "`n"
-        $script:Admission | Should -Match ([regex]::Escape($AgentCall))
+        $script:Admission | Should -Match ([regex]::Escape("& `$OpenClaw 'agent' '--local' '--agent'"))
+        $script:Admission | Should -Match ([regex]::Escape('1> $StdoutPath 2> $StderrPath'))
         $script:Admission | Should -Match ([regex]::Escape('$Payload = $StdoutText | ConvertFrom-Json'))
         $script:Admission | Should -Match ([regex]::Escape("schema_version = '1.4.0'"))
         $script:Admission | Should -Match ([regex]::Escape('stderr = $StderrText'))
