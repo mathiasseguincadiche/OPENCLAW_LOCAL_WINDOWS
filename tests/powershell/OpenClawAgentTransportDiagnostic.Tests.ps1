@@ -7,7 +7,9 @@ Describe 'OpenClaw agent transport diagnostic' {
 
         $Diagnostic | Should -Match "'config' 'file' '--json'"
         $Diagnostic | Should -Match '\$ProviderConfigPath\s*=\s*"models\.providers\.\$ProviderId\.baseUrl"'
-        $Diagnostic | Should -Match "'config' 'get' \$ProviderConfigPath '--json'"
+        $Diagnostic | Should -Match ([regex]::Escape(
+            "'config' 'get' `$ProviderConfigPath '--json'"
+        ))
         $Diagnostic | Should -Match 'TRANSPORT_CAPTURE_PROVIDER='
         $Diagnostic | Should -Match 'TRANSPORT_CAPTURE_UPSTREAM='
         $Diagnostic | Should -Match 'OPENCLAW_CONFIG_READONLY'
