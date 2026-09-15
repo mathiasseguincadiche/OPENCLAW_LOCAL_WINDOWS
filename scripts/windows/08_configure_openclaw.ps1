@@ -178,6 +178,29 @@ function Test-OllamaReady {
     }
 }
 
+function Test-OllamaCompatReady {
+    $HealthUrl = 'http://127.0.0.1:11436/__openclaw_compat_health'
+    try {
+        $Health = Invoke-RestMethod -Method Get -Uri $HealthUrl -TimeoutSec 5
+    }
+    catch {
+        throw (
+            "Proxy Ollama compat non prêt sur $HealthUrl : $($_.Exception.Message). " +
+            'Exécutez .\scripts\windows\28_ollama_compat_supervisor.ps1 -Action install puis -Action start.'
+        )
+    }
+
+    $ExpectedModel = 'hf.co/mistralai/Ministral-3-14B-Reasoning-2512-GGUF:Q4_K_M'
+    if (
+        $Health.ok -ne $true -or
+        [string]$Health.model -ne $ExpectedModel -or
+        [string]$Health.upstream -ne 'http://127.0.0.1:11434'
+    ) {
+        throw "Proxy Ollama compat actif mais contrat inattendu: $($Health | ConvertTo-Json -Compress)"
+    }
+    Write-Host 'OK  Proxy Ollama compat prêt pour Ministral/OpenClaw sur 127.0.0.1:11436.'
+}
+
 function Test-LlamaCppInventory {
     param(
         [Parameter(Mandatory)][string]$Endpoint,
@@ -207,7 +230,8 @@ function Test-SelectedBackendReady {
 
     if ($BackendId -eq 'ollama-vulkan') {
         Test-OllamaReady
-        Write-Host 'OK  Backend texte sélectionné: ollama-vulkan.'
+        Test-OllamaCompatReady
+        Write-Host 'OK  Backend texte sélectionné: ollama-vulkan + compat Ministral local.'
         return
     }
 
@@ -245,6 +269,7 @@ if ($DryRun) {
     if ($Backend -eq 'ollama-vulkan') {
         Write-Host '[DRY-RUN] Contexte nominal B580=8192; orchestration OpenClaw=16384 pour absorber réserve, système et outils.'
         Write-Host '[DRY-RUN] Tool Search structuré + profils minimaux par rôle réduisent les schémas injectés.'
+        Write-Host '[DRY-RUN] Exiger le proxy local 127.0.0.1:11436; seul Ministral y est routé pour fusion user+user validée sur B580.'
         Write-Host '[DRY-RUN] Après application, contrôler réellement l admission des trois familles de modèles avant PASS.'
     }
     elseif ($Backend -eq 'b580-hybrid') {

@@ -86,9 +86,10 @@ $ConfigPath = Join-Path $CanonicalStateDir 'openclaw.json'
 $ProxyUrl = "http://127.0.0.1:$ProxyPort"
 
 if ($DryRun) {
-    Write-Host '[DRY-RUN] Diagnostic ciblé du transport full-agent OpenClaw -> proxy local -> Ollama.'
+    Write-Host '[DRY-RUN] Diagnostic ciblé du transport full-agent OpenClaw -> proxy local -> provider Ollama sélectionné.'
     Write-Host "[DRY-RUN] Agent=$AgentId timeout=${TimeoutSeconds}s proxy=$ProxyUrl."
     Write-Host "[DRY-RUN] Config canonique attendue: $ConfigPath"
+    Write-Host '[DRY-RUN] Résoudre le provider depuis le préfixe du modèle primaire (ollama ou ollama-ministral).'
     Write-Host '[DRY-RUN] Une copie temporaire de la config sera créée; state/openclaw.json ne sera pas modifié.'
     Write-Host '[DRY-RUN] OPENCLAW_STATE_DIR pointera vers un état temporaire isolé pour ne pas entrer en conflit avec un Gateway actif.'
     Write-Host '[DRY-RUN] Vérifier la config effectivement résolue et la baseUrl proxy avant l appel agent.'
@@ -109,16 +110,27 @@ if (-not (Test-Path -LiteralPath $ConfigPath)) {
 $Config = Get-Content -Raw -LiteralPath $ConfigPath | ConvertFrom-Json
 $Agent = Get-AgentEntry -Config $Config -Id $AgentId
 $ModelRef = [string]$Agent.model.primary
-$OriginalBaseUrl = [string]$Config.models.providers.ollama.baseUrl
-if ($OriginalBaseUrl -notmatch '^http://127\.0\.0\.1:11434/?$') {
-    throw "Base URL Ollama inattendue: $OriginalBaseUrl"
+$SeparatorIndex = $ModelRef.IndexOf('/')
+if ($SeparatorIndex -le 0 -or $SeparatorIndex -ge ($ModelRef.Length - 1)) {
+    throw "Référence modèle primaire invalide pour ${AgentId}: $ModelRef"
 }
+$ProviderId = $ModelRef.Substring(0, $SeparatorIndex)
+$PrimaryModel = $ModelRef.Substring($SeparatorIndex + 1)
+$ProviderProperty = $Config.models.providers.PSObject.Properties[$ProviderId]
+if (-not $ProviderProperty -or -not $ProviderProperty.Value) {
+    throw "Provider OpenClaw absent pour ${AgentId}: $ProviderId"
+}
+$OriginalBaseUrl = [string]$ProviderProperty.Value.baseUrl
+if ($OriginalBaseUrl -notmatch '^http://127\.0\.0\.1:(11434|11436)/?$') {
+    throw "Base URL Ollama locale inattendue pour ${ProviderId}: $OriginalBaseUrl"
+}
+$ProviderConfigPath = "models.providers.$ProviderId.baseUrl"
 
 try {
     $null = Invoke-RestMethod -Method Get -Uri "$($OriginalBaseUrl.TrimEnd('/'))/api/tags" -TimeoutSec 3
 }
 catch {
-    throw "Ollama non prêt sur $OriginalBaseUrl : $($_.Exception.Message)"
+    throw "Provider Ollama non prêt sur $OriginalBaseUrl : $($_.Exception.Message)"
 }
 
 if (Get-NetTCPConnection -State Listen -LocalPort $ProxyPort -ErrorAction SilentlyContinue) {
@@ -141,7 +153,11 @@ $Prompt = "N'utilise aucun outil. Réponds immédiatement en une ligne avec exac
 
 New-Item -ItemType Directory -Path $DiagnosticStateDir -Force | Out-Null
 $TempConfig = Get-Content -Raw -LiteralPath $ConfigPath | ConvertFrom-Json
-$TempConfig.models.providers.ollama.baseUrl = $ProxyUrl
+$TempProviderProperty = $TempConfig.models.providers.PSObject.Properties[$ProviderId]
+if (-not $TempProviderProperty -or -not $TempProviderProperty.Value) {
+    throw "Provider absent de la copie temporaire: $ProviderId"
+}
+$TempProviderProperty.Value.baseUrl = $ProxyUrl
 $TempConfig | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath $TempConfigPath -Encoding utf8
 
 $EnvNames = @(
@@ -205,14 +221,16 @@ try {
     }
     $ResolvedConfigPath = [string](($ConfigFileRaw | ConvertFrom-Json).path)
 
-    $BaseUrlRaw = (& $OpenClaw 'config' 'get' 'models.providers.ollama.baseUrl' '--json' 2>&1 | Out-String).Trim()
+    $BaseUrlRaw = (& $OpenClaw 'config' 'get' $ProviderConfigPath '--json' 2>&1 | Out-String).Trim()
     if ($LASTEXITCODE -ne 0) {
-        throw "Lecture de models.providers.ollama.baseUrl en échec: $BaseUrlRaw"
+        throw "Lecture de $ProviderConfigPath en échec: $BaseUrlRaw"
     }
     $ResolvedBaseUrl = [string]($BaseUrlRaw | ConvertFrom-Json)
 
     Write-Host "TRANSPORT_CAPTURE_AGENT=$AgentId"
     Write-Host "TRANSPORT_CAPTURE_REQUESTED_MODEL=$ModelRef"
+    Write-Host "TRANSPORT_CAPTURE_PROVIDER=$ProviderId"
+    Write-Host "TRANSPORT_CAPTURE_UPSTREAM=$OriginalBaseUrl"
     Write-Host "TRANSPORT_CAPTURE_CONFIG_PATH=$ResolvedConfigPath"
     Write-Host "TRANSPORT_CAPTURE_STATE_DIR=$DiagnosticStateDir"
     Write-Host "TRANSPORT_CAPTURE_BASE_URL=$ResolvedBaseUrl"
@@ -261,21 +279,22 @@ $Records = @(
     }
 )
 
-$PrimaryModel = if ($ModelRef.StartsWith('ollama/')) { $ModelRef.Substring(7) } else { $ModelRef }
 $PrimaryRecords = @($Records | Where-Object { [string]$_.request.model -eq $PrimaryModel })
 $RecordCount = @($Records).Count
 $PrimaryRecordCount = @($PrimaryRecords).Count
 
 [ordered]@{
-    schema_version = '1.1.0'
+    schema_version = '1.2.0'
     timestamp_utc = [DateTime]::UtcNow.ToString('o')
     agent = $AgentId
+    requested_provider = $ProviderId
     requested_model_ref = $ModelRef
     requested_model = $PrimaryModel
+    upstream_base_url = $OriginalBaseUrl
     session_key = $SessionKey
     diagnostic_state_dir = $DiagnosticStateDir
     resolved_config_path = $ResolvedConfigPath
-    resolved_ollama_base_url = $ResolvedBaseUrl
+    resolved_provider_base_url = $ResolvedBaseUrl
     openclaw_exit_code = $ExitCode
     request_count = $RecordCount
     primary_request_count = $PrimaryRecordCount

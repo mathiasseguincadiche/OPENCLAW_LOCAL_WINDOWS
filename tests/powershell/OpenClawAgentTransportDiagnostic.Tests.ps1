@@ -1,15 +1,32 @@
 Describe 'OpenClaw agent transport diagnostic' {
-    It 'verifies the temporary config selector and proxy base URL before the agent call' {
+    It 'verifies the temporary config selector and selected provider proxy base URL before the agent call' {
         $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
         $Diagnostic = Get-Content -Raw -LiteralPath (
             Join-Path $RepoRoot 'scripts\windows\27_diagnose_openclaw_agent_transport.ps1'
         )
 
         $Diagnostic | Should -Match "'config' 'file' '--json'"
-        $Diagnostic | Should -Match "'config' 'get' 'models.providers.ollama.baseUrl' '--json'"
+        $Diagnostic | Should -Match '\$ProviderConfigPath\s*=\s*"models\.providers\.\$ProviderId\.baseUrl"'
+        $Diagnostic | Should -Match ([regex]::Escape(
+            "'config' 'get' `$ProviderConfigPath '--json'"
+        ))
+        $Diagnostic | Should -Match 'TRANSPORT_CAPTURE_PROVIDER='
+        $Diagnostic | Should -Match 'TRANSPORT_CAPTURE_UPSTREAM='
         $Diagnostic | Should -Match 'OPENCLAW_CONFIG_READONLY'
         $Diagnostic | Should -Match 'TRANSPORT_CAPTURE_CONFIG_PATH='
         $Diagnostic | Should -Match 'TRANSPORT_CAPTURE_BASE_URL='
+    }
+
+    It 'supports both direct Ollama and the managed Ministral compatibility endpoint' {
+        $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+        $Diagnostic = Get-Content -Raw -LiteralPath (
+            Join-Path $RepoRoot 'scripts\windows\27_diagnose_openclaw_agent_transport.ps1'
+        )
+
+        $Diagnostic | Should -Match '11434\|11436'
+        $Diagnostic | Should -Match '\$ProviderId = \$ModelRef\.Substring'
+        $Diagnostic | Should -Match '\$TempProviderProperty\.Value\.baseUrl = \$ProxyUrl'
+        $Diagnostic | Should -Not -Match '\$TempConfig\.models\.providers\.ollama\.baseUrl = \$ProxyUrl'
     }
 
     It 'preserves agent stdout and stderr evidence when no proxy request is observed' {

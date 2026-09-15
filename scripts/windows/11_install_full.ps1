@@ -18,6 +18,7 @@ $PullModels = Join-Path $PSScriptRoot '03_pull_models.ps1'
 $ConfigureOpenClaw = Join-Path $PSScriptRoot '08_configure_openclaw.ps1'
 $VerifyLocal = Join-Path $PSScriptRoot '04_verify_local.ps1'
 $GatewaySupervisor = Join-Path $PSScriptRoot '26_gateway_external_supervisor.ps1'
+$OllamaCompatSupervisor = Join-Path $PSScriptRoot '28_ollama_compat_supervisor.ps1'
 $GatewayHealth = Join-Path $PSScriptRoot 'lib\gateway_health.ps1'
 $PlatformBackup = Join-Path $PSScriptRoot 'lib\platform_backup.ps1'
 $ReadOnlyGuard = Join-Path $PSScriptRoot 'lib\openclaw_readonly.ps1'
@@ -30,6 +31,9 @@ foreach ($Library in @($GatewayHealth, $PlatformBackup, $ReadOnlyGuard)) {
 }
 if (-not (Test-Path -LiteralPath $GatewaySupervisor)) {
     throw "Superviseur Gateway externe introuvable: $GatewaySupervisor"
+}
+if (-not (Test-Path -LiteralPath $OllamaCompatSupervisor)) {
+    throw "Superviseur Ollama compat introuvable: $OllamaCompatSupervisor"
 }
 
 function Get-PlatformRoot {
@@ -64,6 +68,11 @@ if ($DryRun) {
     Invoke-ScriptChecked -Path $Bootstrap -Parameters @{ DryRun = $true; AllowRuntimeDrift = $AllowRuntimeDrift } -Description 'Dry-run bootstrap'
     Invoke-ScriptChecked -Path $ConfigureOllama -Parameters @{ DryRun = $true } -Description 'Dry-run Ollama'
     Invoke-ScriptChecked -Path $PullModels -Parameters @{ DryRun = $true } -Description 'Dry-run modèles'
+    Invoke-ScriptChecked -Path $OllamaCompatSupervisor -Parameters @{
+        DryRun = $true
+        Action = 'install'
+        PlatformRootOverride = $PlatformRoot
+    } -Description 'Dry-run superviseur Ollama compat'
     Write-Host '[DRY-RUN] Dans la fenêtre d écriture, exécuter openclaw doctor --fix --non-interactive avant configure-openclaw afin de migrer les états legacy supportés.'
     Invoke-ScriptChecked -Path $ConfigureOpenClaw -Parameters @{ DryRun = $true } -Description 'Dry-run OpenClaw'
     Write-Host '[DRY-RUN] Fenêtre contrôlée: process READONLY=0 uniquement pendant doctor/configure-openclaw; User reste READONLY=1.'
@@ -88,6 +97,15 @@ if ($null -ne $BackupResult -and -not [bool]$BackupResult.verified) {
 Invoke-ScriptChecked -Path $Bootstrap -Parameters @{ AllowRuntimeDrift = $AllowRuntimeDrift } -Description 'Bootstrap runtime'
 Invoke-ScriptChecked -Path $ConfigureOllama -Description 'Configuration Ollama'
 Invoke-ScriptChecked -Path $PullModels -Description 'Téléchargement des modèles'
+
+Invoke-ScriptChecked -Path $OllamaCompatSupervisor -Parameters @{
+    Action = 'install'
+    PlatformRootOverride = $PlatformRoot
+} -Description 'Installation du superviseur Ollama compat'
+Invoke-ScriptChecked -Path $OllamaCompatSupervisor -Parameters @{
+    Action = 'start'
+    PlatformRootOverride = $PlatformRoot
+} -Description 'Démarrage du superviseur Ollama compat'
 
 $OpenClaw = Get-OpenClawCommand $PlatformRoot
 $env:OPENCLAW_STATE_DIR = Join-Path $PlatformRoot 'state'
@@ -140,6 +158,7 @@ Assert-OpenClawReadOnlySteadyState
 Write-Host 'OK  Installation complète OPENCLAW_LOCAL terminée.'
 Write-Host "Repo: $RepoRoot"
 if ($null -ne $BackupResult) { Write-Host "Backup vérifié: $($BackupResult.path)" }
+Write-Host 'Ollama compat: superviseur Windows local 127.0.0.1:11436 pour Ministral/OpenClaw'
 if (-not $SkipGatewayService) {
     Write-Host 'Gateway: superviseur externe Windows (OPENCLAW_SUPERVISOR_MODE=external)'
 }
