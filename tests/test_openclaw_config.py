@@ -96,10 +96,10 @@ def test_patch_materializes_all_agents_without_cloud_fallback() -> None:
         )
         primary_provider = entry["model"]["primary"].split("/", 1)[0]
         assert primary_provider in {"ollama", "ollama-ministral"}
-        assert all(
-            model.startswith("ollama/")
-            for model in entry["model"]["fallbacks"]
-        )
+        fallback_providers = {
+            model.split("/", 1)[0] for model in entry["model"]["fallbacks"]
+        }
+        assert fallback_providers <= {"ollama", "ollama-ministral"}
         assert "openrouter/" not in str(entry["model"])
         assert entry["experimental"] == {"localModelLean": True}
         assert entry["tools"]["profile"] == "minimal"
