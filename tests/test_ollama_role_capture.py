@@ -134,6 +134,17 @@ def test_normalization_fails_closed_on_conflicting_user_metadata() -> None:
         module.normalize_adjacent_user_messages(payload, {STRICT_MODEL})
 
 
+def test_env_can_enable_one_exact_normalization_model() -> None:
+    module = load_script()
+
+    models = module.configured_normalize_models(
+        ["other-model", ""],
+        f"  {STRICT_MODEL}  ",
+    )
+
+    assert models == {"other-model", STRICT_MODEL}
+
+
 def test_response_content_type_is_reduced_to_safe_constants() -> None:
     module = load_script()
 
