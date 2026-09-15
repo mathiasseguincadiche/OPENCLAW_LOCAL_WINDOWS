@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import datetime
 import http.client
 import http.server
 import json
+import os
 import pathlib
 import threading
 import typing
@@ -22,6 +24,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--listen-port", type=int, default=11435)
     parser.add_argument("--upstream", default="http://127.0.0.1:11434")
     parser.add_argument("--output", required=True)
+    parser.add_argument(
+        "--normalize-adjacent-user-model",
+        action="append",
+        default=[],
+        help=(
+            "Modèle exact pour lequel le proxy fusionne les messages user adjacents "
+            "avant forwarding. Option de validation ciblée uniquement."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -121,11 +132,114 @@ def request_shape(payload: typing.Any) -> dict[str, typing.Any]:
     }
 
 
+def _merge_user_message(target: dict[str, typing.Any], source: dict[str, typing.Any]) -> None:
+    target_content = target.get("content", "")
+    source_content = source.get("content", "")
+    if not isinstance(target_content, str) or not isinstance(source_content, str):
+        raise ValueError("normalisation user: content non textuel non supporté")
+
+    if target.get("tool_calls") or source.get("tool_calls"):
+        raise ValueError("normalisation user: tool_calls inattendus sur un message user")
+    if target.get("tool_name") or source.get("tool_name"):
+        raise ValueError("normalisation user: tool_name inattendu sur un message user")
+    if target.get("tool_call_id") or source.get("tool_call_id"):
+        raise ValueError("normalisation user: tool_call_id inattendu sur un message user")
+
+    if target_content and source_content:
+        target["content"] = target_content + "\n\n" + source_content
+    else:
+        target["content"] = target_content + source_content
+
+    source_images = source.get("images")
+    if source_images is not None:
+        if not isinstance(source_images, list):
+            raise ValueError("normalisation user: images doit être une liste")
+        target_images = target.get("images")
+        if target_images is None:
+            target["images"] = list(source_images)
+        elif isinstance(target_images, list):
+            target["images"] = list(target_images) + list(source_images)
+        else:
+            raise ValueError("normalisation user: images cible doit être une liste")
+
+    ignored_keys = {"role", "content", "images"}
+    for key, value in source.items():
+        if key in ignored_keys:
+            continue
+        if key not in target:
+            target[key] = copy.deepcopy(value)
+            continue
+        if target[key] == value or value in (None, "", [], {}):
+            continue
+        if target[key] in (None, "", [], {}):
+            target[key] = copy.deepcopy(value)
+            continue
+        raise ValueError(f"normalisation user: champ conflictuel {key}")
+
+
+def normalize_adjacent_user_messages(
+    payload: typing.Any,
+    model_ids: set[str],
+) -> tuple[typing.Any, dict[str, typing.Any]]:
+    metadata: dict[str, typing.Any] = {
+        "eligible": False,
+        "applied": False,
+        "merged_user_messages": 0,
+    }
+    if not isinstance(payload, dict):
+        return payload, metadata
+
+    model = payload.get("model")
+    if not isinstance(model, str) or model not in model_ids:
+        return payload, metadata
+
+    metadata["eligible"] = True
+    raw_messages = payload.get("messages")
+    if not isinstance(raw_messages, list):
+        return payload, metadata
+
+    normalized = copy.deepcopy(payload)
+    normalized_messages = normalized.get("messages")
+    if not isinstance(normalized_messages, list):
+        return payload, metadata
+
+    output: list[typing.Any] = []
+    merged = 0
+    for message in normalized_messages:
+        if (
+            isinstance(message, dict)
+            and message.get("role") == "user"
+            and output
+            and isinstance(output[-1], dict)
+            and output[-1].get("role") == "user"
+        ):
+            _merge_user_message(output[-1], message)
+            merged += 1
+            continue
+        output.append(message)
+
+    normalized["messages"] = output
+    metadata["merged_user_messages"] = merged
+    metadata["applied"] = merged > 0
+    return normalized, metadata
+
+
+def configured_normalize_models(
+    cli_models: typing.Iterable[str],
+    env_model: str | None,
+) -> set[str]:
+    models = {model.strip() for model in cli_models if model.strip()}
+    if env_model and env_model.strip():
+        models.add(env_model.strip())
+    return models
+
+
 class ShapeProxyHandler(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     upstream = urllib.parse.urlsplit("http://127.0.0.1:11434")
     output_path = pathlib.Path("ollama-role-capture.jsonl")
     output_lock = threading.Lock()
+    normalize_models: set[str] = set()
 
     def log_message(self, _format: str, *_args: typing.Any) -> None:
         return
@@ -141,9 +255,20 @@ class ShapeProxyHandler(http.server.BaseHTTPRequestHandler):
             with self.output_path.open("a", encoding="utf-8") as handle:
                 handle.write(line + "\n")
 
+    def _send_local_error(self, status: int, message: str) -> None:
+        error_body = json.dumps({"error": message}).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(error_body)))
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.write(error_body)
+        self.close_connection = True
+
     def _proxy(self) -> None:
         request_body = self._read_body()
         record: dict[str, typing.Any] | None = None
+        payload: typing.Any = None
         if self.path.startswith("/api/chat"):
             try:
                 payload = json.loads(request_body.decode("utf-8"))
@@ -155,6 +280,29 @@ class ShapeProxyHandler(http.server.BaseHTTPRequestHandler):
                 "path": self.path,
                 "request": request_shape(payload),
             }
+            try:
+                forwarded_payload, normalization = normalize_adjacent_user_messages(
+                    payload,
+                    self.normalize_models,
+                )
+            except ValueError as exc:
+                record["normalization"] = {
+                    "eligible": True,
+                    "applied": False,
+                    "merged_user_messages": 0,
+                    "error": str(exc),
+                }
+                self._append_record(record)
+                self._send_local_error(422, "diagnostic role normalization rejected request")
+                return
+            record["normalization"] = normalization
+            record["forwarded_request"] = request_shape(forwarded_payload)
+            if normalization["applied"]:
+                request_body = json.dumps(
+                    forwarded_payload,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                ).encode("utf-8")
 
         target_path = self.path
         if self.upstream.path and self.upstream.path != "/":
@@ -199,15 +347,7 @@ class ShapeProxyHandler(http.server.BaseHTTPRequestHandler):
             if record is not None:
                 record["proxy_error"] = f"{type(exc).__name__}: {exc}"
                 self._append_record(record)
-            error_payload = {"error": f"diagnostic proxy failure: {exc}"}
-            error_body = json.dumps(error_payload).encode("utf-8")
-            self.send_response(502)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(error_body)))
-            self.send_header("Connection", "close")
-            self.end_headers()
-            self.wfile.write(error_body)
-            self.close_connection = True
+            self._send_local_error(502, f"diagnostic proxy failure: {exc}")
         finally:
             connection.close()
 
@@ -224,13 +364,18 @@ def main() -> int:
 
     ShapeProxyHandler.upstream = upstream
     ShapeProxyHandler.output_path = pathlib.Path(args.output)
+    ShapeProxyHandler.normalize_models = configured_normalize_models(
+        args.normalize_adjacent_user_model,
+        os.environ.get("OPENCLAW_DIAG_NORMALIZE_ADJACENT_USER_MODEL"),
+    )
     server = http.server.ThreadingHTTPServer(
         (args.listen_host, args.listen_port),
         ShapeProxyHandler,
     )
+    normalization = ",".join(sorted(ShapeProxyHandler.normalize_models)) or "none"
     print(
         f"ROLE_CAPTURE_READY=http://{args.listen_host}:{args.listen_port} "
-        f"upstream={args.upstream} output={args.output}",
+        f"upstream={args.upstream} output={args.output} normalize={normalization}",
         flush=True,
     )
     try:

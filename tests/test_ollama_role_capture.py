@@ -4,8 +4,11 @@ import importlib.util
 import pathlib
 import types
 
+import pytest
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "54_capture_ollama_request_roles.py"
+STRICT_MODEL = "hf.co/mistralai/Ministral-3-14B-Reasoning-2512-GGUF:Q4_K_M"
 
 
 def load_script() -> types.ModuleType:
@@ -56,6 +59,90 @@ def test_request_shape_keeps_roles_and_drops_prompt_text() -> None:
     assert "secret-system-text" not in serialized
     assert "secret-user-text" not in serialized
     assert "secret-description" not in serialized
+
+
+def test_normalization_merges_adjacent_user_only_for_exact_model() -> None:
+    module = load_script()
+    payload = {
+        "model": STRICT_MODEL,
+        "messages": [
+            {"role": "system", "content": "system"},
+            {"role": "user", "content": "bootstrap"},
+            {"role": "user", "content": "prompt"},
+        ],
+        "tools": [{"type": "function", "function": {"name": "ping"}}],
+    }
+
+    normalized, metadata = module.normalize_adjacent_user_messages(
+        payload,
+        {STRICT_MODEL},
+    )
+
+    assert metadata == {
+        "eligible": True,
+        "applied": True,
+        "merged_user_messages": 1,
+    }
+    assert [message["role"] for message in normalized["messages"]] == [
+        "system",
+        "user",
+    ]
+    assert normalized["messages"][1]["content"] == "bootstrap\n\nprompt"
+    assert normalized["tools"] == payload["tools"]
+    assert [message["role"] for message in payload["messages"]] == [
+        "system",
+        "user",
+        "user",
+    ]
+
+
+def test_normalization_is_noop_for_other_model() -> None:
+    module = load_script()
+    payload = {
+        "model": "qwen3.5:9b-q4_K_M",
+        "messages": [
+            {"role": "system", "content": "system"},
+            {"role": "user", "content": "first"},
+            {"role": "user", "content": "second"},
+        ],
+    }
+
+    normalized, metadata = module.normalize_adjacent_user_messages(
+        payload,
+        {STRICT_MODEL},
+    )
+
+    assert normalized is payload
+    assert metadata == {
+        "eligible": False,
+        "applied": False,
+        "merged_user_messages": 0,
+    }
+
+
+def test_normalization_fails_closed_on_conflicting_user_metadata() -> None:
+    module = load_script()
+    payload = {
+        "model": STRICT_MODEL,
+        "messages": [
+            {"role": "user", "content": "first", "custom": "a"},
+            {"role": "user", "content": "second", "custom": "b"},
+        ],
+    }
+
+    with pytest.raises(ValueError, match="champ conflictuel custom"):
+        module.normalize_adjacent_user_messages(payload, {STRICT_MODEL})
+
+
+def test_env_can_enable_one_exact_normalization_model() -> None:
+    module = load_script()
+
+    models = module.configured_normalize_models(
+        ["other-model", ""],
+        f"  {STRICT_MODEL}  ",
+    )
+
+    assert models == {"other-model", STRICT_MODEL}
 
 
 def test_response_content_type_is_reduced_to_safe_constants() -> None:
