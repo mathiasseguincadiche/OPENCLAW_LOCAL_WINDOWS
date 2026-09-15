@@ -45,6 +45,27 @@ def safe_response_content_type(value: str | None) -> str:
     return "application/octet-stream"
 
 
+def probe_upstream_ready() -> bool:
+    upstream = urllib.parse.urlsplit(UPSTREAM_URL)
+    connection = http.client.HTTPConnection(
+        upstream.hostname,
+        upstream.port,
+        timeout=2,
+    )
+    try:
+        connection.request(
+            "GET",
+            "/api/tags",
+            headers={"Accept": "application/json", "Connection": "close"},
+        )
+        response = connection.getresponse()
+        return 200 <= response.status < 300
+    except (OSError, http.client.HTTPException):
+        return False
+    finally:
+        connection.close()
+
+
 def role_sequence(payload: typing.Any) -> list[str]:
     if not isinstance(payload, dict):
         return []
@@ -163,13 +184,15 @@ class CompatProxyHandler(http.server.BaseHTTPRequestHandler):
         self.close_connection = True
 
     def _health(self) -> None:
+        upstream_ready = probe_upstream_ready()
         self._send_json(
-            200,
+            200 if upstream_ready else 503,
             {
-                "ok": True,
+                "ok": upstream_ready,
                 "mode": "ministral-adjacent-user-normalization",
                 "model": STRICT_MODEL,
                 "upstream": UPSTREAM_URL,
+                "upstream_ready": upstream_ready,
             },
         )
 

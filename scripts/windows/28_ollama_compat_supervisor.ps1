@@ -66,6 +66,16 @@ function Get-InstalledProxyPath {
     return (Join-Path $PlatformRoot 'runtime\ollama_openclaw_compat_proxy.py')
 }
 
+function Test-OllamaUpstreamReady {
+    try {
+        $null = Invoke-RestMethod -Method Get -Uri "$ExpectedUpstream/api/tags" -TimeoutSec 3
+        return $true
+    }
+    catch {
+        return $false
+    }
+}
+
 function Test-OllamaCompatHealth {
     try {
         $Health = Invoke-RestMethod -Method Get -Uri $HealthUrl -TimeoutSec 2
@@ -76,6 +86,7 @@ function Test-OllamaCompatHealth {
 
     return (
         $Health.ok -eq $true -and
+        $Health.upstream_ready -eq $true -and
         [string]$Health.model -eq $ExpectedModel -and
         [string]$Health.upstream -eq $ExpectedUpstream
     )
@@ -180,6 +191,13 @@ function Start-OllamaCompatSupervisor {
         return
     }
 
+    if (-not (Test-OllamaUpstreamReady)) {
+        throw (
+            "Backend Ollama non prêt sur $ExpectedUpstream. " +
+            'Exécutez .\menu.ps1 -Action configure-local puis relancez le superviseur compat.'
+        )
+    }
+
     $Task = Get-ScheduledTask -TaskName $TaskName -ErrorAction Stop
     if ([string]$Task.State -ne 'Running') {
         Start-ScheduledTask -TaskName $TaskName -ErrorAction Stop
@@ -242,6 +260,7 @@ function Get-OllamaCompatSupervisorStatus {
         task_name = $TaskName
         state = if ($Installed) { [string]$Task.State } else { 'absent' }
         endpoint = "http://127.0.0.1:$ListenPort"
+        upstream_ready = [bool](Test-OllamaUpstreamReady)
         healthy = [bool](Test-OllamaCompatHealth)
         last_run_time = if ($Info) { $Info.LastRunTime } else { $null }
         last_task_result = if ($Info) { $Info.LastTaskResult } else { $null }
@@ -292,6 +311,7 @@ if ($DryRun) {
     Write-Host '[DRY-RUN] Superviseur Ollama compat local-only pour OpenClaw 2026.9.4.'
     Write-Host "[DRY-RUN] Task=$TaskName root=$PlatformRoot action=$Action"
     Write-Host "[DRY-RUN] Endpoint=http://127.0.0.1:$ListenPort upstream=$ExpectedUpstream"
+    Write-Host '[DRY-RUN] Exiger Ollama prêt sur 127.0.0.1:11434 avant de déclarer le proxy compatible sain.'
     Write-Host "[DRY-RUN] Normalisation limitée au modèle exact: $ExpectedModel"
     Write-Host '[DRY-RUN] Fusionner uniquement les messages user adjacents; tous les autres modèles et endpoints sont relayés sans transformation sémantique.'
     Write-Host '[DRY-RUN] Le proxy et le superviseur seront copiés sous <root>\runtime et relancés par Task Scheduler.'

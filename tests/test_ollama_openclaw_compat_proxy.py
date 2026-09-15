@@ -88,6 +88,72 @@ def test_non_text_user_content_fails_closed() -> None:
         module.normalize_ministral_messages(payload)
 
 
+def test_upstream_health_probe_requires_successful_local_ollama(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = load_script()
+    observed: dict[str, object] = {}
+
+    class FakeResponse:
+        status = 200
+
+    class FakeConnection:
+        def __init__(self, host: str, port: int, timeout: int) -> None:
+            observed["host"] = host
+            observed["port"] = port
+            observed["timeout"] = timeout
+
+        def request(
+            self,
+            method: str,
+            path: str,
+            headers: dict[str, str],
+        ) -> None:
+            observed["method"] = method
+            observed["path"] = path
+            observed["headers"] = headers
+
+        def getresponse(self) -> FakeResponse:
+            return FakeResponse()
+
+        def close(self) -> None:
+            observed["closed"] = True
+
+    monkeypatch.setattr(module.http.client, "HTTPConnection", FakeConnection)
+
+    assert module.probe_upstream_ready() is True
+    assert observed["host"] == "127.0.0.1"
+    assert observed["port"] == 11434
+    assert observed["path"] == "/api/tags"
+    assert observed["closed"] is True
+
+
+def test_upstream_health_probe_fails_closed_on_connection_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = load_script()
+
+    class FailingConnection:
+        def __init__(self, host: str, port: int, timeout: int) -> None:
+            del host, port, timeout
+
+        def request(
+            self,
+            method: str,
+            path: str,
+            headers: dict[str, str],
+        ) -> None:
+            del method, path, headers
+            raise ConnectionRefusedError("local Ollama unavailable")
+
+        def close(self) -> None:
+            return
+
+    monkeypatch.setattr(module.http.client, "HTTPConnection", FailingConnection)
+
+    assert module.probe_upstream_ready() is False
+
+
 def test_proxy_contract_is_loopback_and_prompt_text_is_not_part_of_health() -> None:
     module = load_script()
 

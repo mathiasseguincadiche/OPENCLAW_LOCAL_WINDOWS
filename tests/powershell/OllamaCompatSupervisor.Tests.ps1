@@ -35,6 +35,19 @@ Describe 'Ollama OpenClaw compatibility supervisor' {
         $script:Supervisor | Should -Match 'MultipleInstances IgnoreNew'
     }
 
+    It 'requires Ollama upstream before declaring the compat supervisor ready' {
+        $script:Supervisor | Should -Match 'function Test-OllamaUpstreamReady'
+        $script:Supervisor | Should -Match '\$ExpectedUpstream/api/tags'
+        $script:Supervisor | Should -Match 'upstream_ready'
+        $script:Supervisor | Should -Match ([regex]::Escape(
+            '.\menu.ps1 -Action configure-local'
+        ))
+        $script:Supervisor | Should -Match (
+            '(?s)function Start-OllamaCompatSupervisor.*' +
+            'Test-OllamaUpstreamReady.*Test-OllamaCompatHealth'
+        )
+    }
+
     It 'starts the compatibility proxy before OpenClaw configuration in install-full' {
         $script:Installer | Should -Match '28_ollama_compat_supervisor\.ps1'
         $InstallIndex = $script:Installer.IndexOf(
