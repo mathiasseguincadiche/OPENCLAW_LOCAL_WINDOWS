@@ -1,4 +1,4 @@
-schema_version: "1.4.0"
+schema_version: "1.5.0"
 platform_version: "0.3.0"
 backends:
   ollama-vulkan:
@@ -9,6 +9,13 @@ backends:
     activation: automatic
     accelerator: vulkan
     qualification_required: true
+    openclaw_compat:
+      provider_id: ollama-ministral
+      endpoint: "http://127.0.0.1:11436"
+      upstream: "http://127.0.0.1:11434"
+      normalize_aliases: [devstral-devops]
+      behavior: merge_adjacent_user_messages
+      activation: managed_automatic
 
   llama-cpp-vulkan:
     provider: llama_cpp_http
