@@ -6,6 +6,7 @@ import datetime
 import http.client
 import http.server
 import json
+import os
 import pathlib
 import threading
 import typing
@@ -223,6 +224,16 @@ def normalize_adjacent_user_messages(
     return normalized, metadata
 
 
+def configured_normalize_models(
+    cli_models: typing.Iterable[str],
+    env_model: str | None,
+) -> set[str]:
+    models = {model.strip() for model in cli_models if model.strip()}
+    if env_model and env_model.strip():
+        models.add(env_model.strip())
+    return models
+
+
 class ShapeProxyHandler(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     upstream = urllib.parse.urlsplit("http://127.0.0.1:11434")
@@ -353,7 +364,10 @@ def main() -> int:
 
     ShapeProxyHandler.upstream = upstream
     ShapeProxyHandler.output_path = pathlib.Path(args.output)
-    ShapeProxyHandler.normalize_models = set(args.normalize_adjacent_user_model)
+    ShapeProxyHandler.normalize_models = configured_normalize_models(
+        args.normalize_adjacent_user_model,
+        os.environ.get("OPENCLAW_DIAG_NORMALIZE_ADJACENT_USER_MODEL"),
+    )
     server = http.server.ThreadingHTTPServer(
         (args.listen_host, args.listen_port),
         ShapeProxyHandler,
