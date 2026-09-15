@@ -11,7 +11,8 @@ $ErrorActionPreference = 'Stop'
 if ($DryRun) {
     Write-Host '[DRY-RUN] Contrôle d admission du prompt full-agent OpenClaw.'
     Write-Host "[DRY-RUN] Agent=$AgentId timeout=${TimeoutSeconds}s."
-    Write-Host '[DRY-RUN] Exécuter explicitement via openclaw agent --local: ce gate précède le démarrage du Gateway dans install-full.'
+    Write-Host '[DRY-RUN] Exécuter explicitement via openclaw agent --local avec un state temporaire isolé du Gateway canonique.'
+    Write-Host '[DRY-RUN] Fixer OPENCLAW_CONFIG_PATH sur la config canonique et OPENCLAW_CONFIG_READONLY=1 pendant le gate.'
     Write-Host '[DRY-RUN] Séparer stdout JSON de stderr diagnostic avant tout ConvertFrom-Json.'
     Write-Host '[DRY-RUN] Lire meta au niveau racine de l enveloppe JSON locale OpenClaw 2026.9.4, avec fallback result.meta pour compatibilité.'
     Write-Host '[DRY-RUN] Exiger que meta.agentMeta provider/modèle corresponde exactement au primaire demandé et refuser tout fallback.'
@@ -41,6 +42,20 @@ function Get-OpenClawCommand([string]$PlatformRoot) {
         return $Managed
     }
     throw 'OpenClaw absent. Exécutez install-core.'
+}
+
+function Invoke-ProcessEnvironmentValue {
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [AllowNull()][string]$Value
+    )
+
+    if ($null -eq $Value) {
+        Remove-Item -LiteralPath "Env:$Name" -ErrorAction SilentlyContinue
+    }
+    else {
+        Set-Item -LiteralPath "Env:$Name" -Value $Value
+    }
 }
 
 function Get-AgentEntry {
@@ -252,21 +267,15 @@ function Write-PromptBudgetSummary {
 }
 
 $PlatformRoot = Get-PlatformRoot
-$StateDir = Join-Path $PlatformRoot 'state'
+$CanonicalStateDir = Join-Path $PlatformRoot 'state'
 $ProofsRoot = Join-Path $PlatformRoot 'proofs'
-$ConfigPath = Join-Path $StateDir 'openclaw.json'
+$ConfigPath = Join-Path $CanonicalStateDir 'openclaw.json'
 $OpenClaw = Get-OpenClawCommand $PlatformRoot
 
 if (-not (Test-Path -LiteralPath $ConfigPath)) {
     throw 'Configuration OpenClaw absente avant le contrôle d admission.'
 }
 New-Item -ItemType Directory -Path $ProofsRoot -Force | Out-Null
-
-$env:OPENCLAW_STATE_DIR = $StateDir
-$env:OLLAMA_API_KEY = 'ollama-local'
-$env:INTEL_SYCL_API_KEY = 'intel-sycl-local'
-$env:INTEL_VULKAN_API_KEY = 'intel-vulkan-local'
-$env:OPENCLAW_LOCAL_CLOUD_ENABLED = 'false'
 
 $Config = Get-Content -Raw -LiteralPath $ConfigPath | ConvertFrom-Json
 Assert-ZeroSkillPromptConfig -Config $Config
@@ -280,6 +289,7 @@ $ExpectedProvider = $ModelRef.Substring(0, $SeparatorIndex)
 $ExpectedModel = $ModelRef.Substring($SeparatorIndex + 1)
 $Stamp = Get-Date -Format 'yyyyMMdd_HHmmssfff'
 $EvidencePath = Join-Path $ProofsRoot "openclaw_prompt_admission_$Stamp.json"
+$AdmissionStateDir = Join-Path $ProofsRoot ".openclaw_prompt_admission_state_${Stamp}_${AgentId}"
 $SessionKey = "configure-admission-$Stamp-$AgentId"
 $Expected = "PROMPT_ADMISSION_OK $AgentId"
 $Prompt = "N'utilise aucun outil. Réponds immédiatement en une ligne avec exactement: $Expected"
@@ -287,17 +297,60 @@ $ExecutionMode = 'local'
 $StdoutPath = Join-Path $ProofsRoot ".openclaw_prompt_admission_${Stamp}_${AgentId}.stdout.tmp"
 $StderrPath = Join-Path $ProofsRoot ".openclaw_prompt_admission_${Stamp}_${AgentId}.stderr.tmp"
 
+$EnvNames = @(
+    'OPENCLAW_CONFIG_PATH',
+    'OPENCLAW_STATE_DIR',
+    'OPENCLAW_CONFIG_READONLY',
+    'OLLAMA_API_KEY',
+    'INTEL_SYCL_API_KEY',
+    'INTEL_VULKAN_API_KEY',
+    'OPENCLAW_LOCAL_CLOUD_ENABLED'
+)
+$OriginalEnv = @{}
+foreach ($Name in $EnvNames) {
+    $OriginalEnv[$Name] = [Environment]::GetEnvironmentVariable($Name, 'Process')
+}
+
+New-Item -ItemType Directory -Path $AdmissionStateDir -Force | Out-Null
+
 Write-Host "ADMISSION  Agent=$AgentId modèle=$ModelRef timeout=${TimeoutSeconds}s mode=$ExecutionMode"
 Write-Host "PROMPT_ADMISSION_MODE=$ExecutionMode"
 Write-Host "PROMPT_ADMISSION_REQUESTED_MODEL=$ModelRef"
-# Ce gate est exécuté par configure-openclaw avant install/start du Gateway dans
-# install-full. --local évite donc une dépendance circulaire tout en exécutant
-# réellement le même agent, sa configuration, son prompt système et son modèle.
+# Le gate local utilise un state jetable et la config canonique explicitement en
+# lecture seule. Il reste ainsi indépendant d un Gateway déjà actif sur le state
+# de production, sans arrêter ce Gateway ni muter ses sessions.
 # OpenClaw 2026.9.4 peut émettre ses diagnostics agent sur stderr même avec
 # --json. stdout reste le contrat JSON machine-readable et doit être parsé seul.
 $StdoutText = ''
 $StderrText = ''
+$ExitCode = $null
+$ResolvedConfigPath = ''
 try {
+    Invoke-ProcessEnvironmentValue -Name 'OPENCLAW_CONFIG_PATH' -Value $ConfigPath
+    Invoke-ProcessEnvironmentValue -Name 'OPENCLAW_STATE_DIR' -Value $AdmissionStateDir
+    Invoke-ProcessEnvironmentValue -Name 'OPENCLAW_CONFIG_READONLY' -Value '1'
+    Invoke-ProcessEnvironmentValue -Name 'OLLAMA_API_KEY' -Value 'ollama-local'
+    Invoke-ProcessEnvironmentValue -Name 'INTEL_SYCL_API_KEY' -Value 'intel-sycl-local'
+    Invoke-ProcessEnvironmentValue -Name 'INTEL_VULKAN_API_KEY' -Value 'intel-vulkan-local'
+    Invoke-ProcessEnvironmentValue -Name 'OPENCLAW_LOCAL_CLOUD_ENABLED' -Value 'false'
+
+    $ConfigFileRaw = (& $OpenClaw 'config' 'file' '--json' 2>&1 | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0) {
+        throw "Lecture du chemin de config OpenClaw en échec pendant l admission: $ConfigFileRaw"
+    }
+    try {
+        $ResolvedConfigPath = [string](($ConfigFileRaw | ConvertFrom-Json).path)
+    }
+    catch {
+        throw "Chemin de config OpenClaw non JSON pendant l admission: $ConfigFileRaw"
+    }
+    if ([IO.Path]::GetFullPath($ResolvedConfigPath) -ne [IO.Path]::GetFullPath($ConfigPath)) {
+        throw "OpenClaw n utilise pas la config canonique attendue pendant l admission. Résolu=$ResolvedConfigPath Attendu=$ConfigPath"
+    }
+
+    Write-Host "PROMPT_ADMISSION_CONFIG_PATH=$ResolvedConfigPath"
+    Write-Host "PROMPT_ADMISSION_STATE_DIR=$AdmissionStateDir"
+
     & $OpenClaw 'agent' '--local' '--agent' $AgentId `
         '--session-key' $SessionKey '--message' $Prompt '--thinking' 'off' `
         '--timeout' ([string]$TimeoutSeconds) '--json' 1> $StdoutPath 2> $StderrPath
@@ -310,6 +363,10 @@ try {
     }
 }
 finally {
+    foreach ($Name in $OriginalEnv.Keys) {
+        Invoke-ProcessEnvironmentValue -Name $Name -Value $OriginalEnv[$Name]
+    }
+    Remove-Item -LiteralPath $AdmissionStateDir -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $StdoutPath -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $StderrPath -Force -ErrorAction SilentlyContinue
 }
@@ -320,11 +377,14 @@ if (-not [string]::IsNullOrWhiteSpace($StderrText)) {
 
 if ($ExitCode -ne 0) {
     [ordered]@{
-        schema_version = '1.3.0'
+        schema_version = '1.4.0'
         timestamp_utc = [DateTime]::UtcNow.ToString('o')
         execution_mode = $ExecutionMode
         agent = $AgentId
         model_ref = $ModelRef
+        canonical_config_path = $ConfigPath
+        resolved_config_path = $ResolvedConfigPath
+        isolated_state_dir = $AdmissionStateDir
         exit_code = $ExitCode
         stdout = $StdoutText
         stderr = $StderrText
@@ -338,11 +398,14 @@ try {
 }
 catch {
     [ordered]@{
-        schema_version = '1.3.0'
+        schema_version = '1.4.0'
         timestamp_utc = [DateTime]::UtcNow.ToString('o')
         execution_mode = $ExecutionMode
         agent = $AgentId
         model_ref = $ModelRef
+        canonical_config_path = $ConfigPath
+        resolved_config_path = $ResolvedConfigPath
+        isolated_state_dir = $AdmissionStateDir
         exit_code = $ExitCode
         stdout = $StdoutText
         stderr = $StderrText
