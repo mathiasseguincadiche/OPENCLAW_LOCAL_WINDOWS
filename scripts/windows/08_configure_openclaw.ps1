@@ -238,8 +238,15 @@ function Test-SelectedBackendReady {
     $Lock = Get-Content -Raw -LiteralPath $LockPath | ConvertFrom-Json
     if ($BackendId -eq 'b580-hybrid') {
         Test-OllamaReady
+        $ExpectedRuntimeModels = @(
+            $Lock.llama_cpp_vulkan.managed_runtime_models |
+                ForEach-Object { [string]$_ }
+        )
+        if ($ExpectedRuntimeModels.Count -ne 2) {
+            throw 'Contrat managed_runtime_models Intel Vulkan invalide.'
+        }
         Test-LlamaCppInventory -Endpoint ([string]$Lock.llama_cpp_vulkan.endpoint) `
-            -Expected @($Lock.llama_cpp_vulkan.managed_models | ForEach-Object { [string]$_ }) `
+            -Expected $ExpectedRuntimeModels `
             -Label 'Backend Intel Vulkan géré'
         Write-Host 'OK  Profil B580 hybride prêt: Qwen 3.5->Ollama/Vulkan, Gemma 4/Ministral Reasoning->llama.cpp/Vulkan.'
         Write-Host 'INFO Image/PDF restent intégralement sur Ollama/Vulkan via Qwen 3.5/Gemma 4.'
