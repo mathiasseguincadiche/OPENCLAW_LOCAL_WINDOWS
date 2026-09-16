@@ -406,6 +406,14 @@ function Invoke-ExternalGateway {
     param([Parameter(Mandatory)][string]$PlatformRoot)
 
     Initialize-ExternalGatewayEnvironment -PlatformRoot $PlatformRoot
+
+    # OpenClaw/Node émettent des flux UTF-8. Le superviseur est lancé hors
+    # console interactive par Windows Task Scheduler : imposer explicitement
+    # UTF-8 évite le mojibake dans les preuves gateway_external_*.log.
+    $Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+    [Console]::InputEncoding  = $Utf8NoBom
+    [Console]::OutputEncoding = $Utf8NoBom
+    $global:OutputEncoding    = $Utf8NoBom
     $StateDir = Join-Path $PlatformRoot 'state'
     $ConfigPath = Join-Path $StateDir 'openclaw.json'
     if (-not (Test-Path -LiteralPath $ConfigPath)) {
