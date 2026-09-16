@@ -424,7 +424,7 @@ function Invoke-ExternalGateway {
 $PlatformRoot = Get-PlatformRoot
 
 if ($DryRun) {
-    Write-Host ' [DRY-RUN] Gateway OpenClaw relocalisé: superviseur externe Windows Task Scheduler.'.TrimStart()
+    Write-Host '[DRY-RUN] Gateway OpenClaw relocalisé: superviseur externe Windows Task Scheduler.'
     Write-Host "[DRY-RUN] Task=$TaskName root=$PlatformRoot action=$Action"
     Write-Host '[DRY-RUN] OPENCLAW_SUPERVISOR_MODE=external et OPENCLAW_SERVICE_REPAIR_POLICY=external.'
     Write-Host '[DRY-RUN] Le processus Gateway utilisera OPENCLAW_STATE_DIR=<root>\state et OPENCLAW_CONFIG_PATH=<root>\state\openclaw.json.'
