@@ -166,6 +166,60 @@ function Get-IntelVulkanManagedModel {
     return $Models
 }
 
+function ConvertTo-IntelVulkanRouterModelId {
+    param([Parameter(Mandatory)][string]$LogicalModel)
+
+    $ColonIndex = $LogicalModel.LastIndexOf(':')
+    if ($ColonIndex -lt 0) {
+        return $LogicalModel
+    }
+
+    $Prefix = $LogicalModel.Substring(0, $ColonIndex)
+    $Tag = $LogicalModel.Substring($ColonIndex + 1)
+    $Match = [regex]::Match(
+        $Tag,
+        '[-.]([A-Z0-9_]+)$',
+        [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
+    )
+    $CanonicalTag = if ($Match.Success) {
+        $Match.Groups[1].Value.ToUpperInvariant()
+    }
+    else {
+        $Tag.ToUpperInvariant()
+    }
+    return "${Prefix}:$CanonicalTag"
+}
+
+function Get-IntelVulkanManagedRuntimeModel {
+    param([Parameter(Mandatory)]$RuntimeLock)
+
+    $LogicalModels = Get-IntelVulkanManagedModel -RuntimeLock $RuntimeLock
+    $RuntimeModels = @(
+        $RuntimeLock.managed_runtime_models | ForEach-Object { [string]$_ }
+    )
+    if ($RuntimeModels.Count -ne $LogicalModels.Count) {
+        throw (
+            'Contrat managed_runtime_models incohérent: ' +
+            "sources=$($LogicalModels.Count) runtime=$($RuntimeModels.Count)."
+        )
+    }
+
+    for ($Index = 0; $Index -lt $LogicalModels.Count; $Index++) {
+        $Derived = ConvertTo-IntelVulkanRouterModelId -LogicalModel $LogicalModels[$Index]
+        if (-not [string]::Equals(
+            $Derived,
+            $RuntimeModels[$Index],
+            [System.StringComparison]::OrdinalIgnoreCase
+        )) {
+            throw (
+                "Contrat ID routeur Vulkan incohérent pour $($LogicalModels[$Index]): " +
+                "déclaré=$($RuntimeModels[$Index]) dérivé=$Derived."
+            )
+        }
+    }
+    return $RuntimeModels
+}
+
 function New-IntelVulkanModelPreset {
     [CmdletBinding(SupportsShouldProcess)]
     param(
@@ -178,6 +232,7 @@ function New-IntelVulkanModelPreset {
     $null = $RepoRoot
     $null = $PlatformRoot
     $Models = Get-IntelVulkanManagedModel -RuntimeLock $RuntimeLock
+    $null = Get-IntelVulkanManagedRuntimeModel -RuntimeLock $RuntimeLock
     $Lines = @(
         'version = 1',
         '',
@@ -253,10 +308,16 @@ function Resolve-IntelVulkanRuntimeModelId {
         [Parameter(Mandatory)][string]$LogicalModel
     )
 
+    $ExpectedRuntimeModel = ConvertTo-IntelVulkanRouterModelId -LogicalModel $LogicalModel
     $Ids = @($Inventory.data | ForEach-Object { [string]$_.id })
-    $Resolved = $Ids | Where-Object { $_ -ieq $LogicalModel } | Select-Object -First 1
+    $Resolved = $Ids |
+        Where-Object { $_ -ieq $ExpectedRuntimeModel } |
+        Select-Object -First 1
     if (-not $Resolved) {
-        throw "Modèle Vulkan absent du routeur: $LogicalModel (disponibles=$($Ids -join ','))."
+        throw (
+            "Modèle Vulkan absent du routeur: logique=$LogicalModel " +
+            "runtime_attendu=$ExpectedRuntimeModel (disponibles=$($Ids -join ','))."
+        )
     }
     return [string]$Resolved
 }
@@ -284,6 +345,7 @@ function Start-IntelVulkanServer {
 
     $Models = New-IntelVulkanModelPreset -RepoRoot $RepoRoot -PlatformRoot $PlatformRoot `
         -RuntimeLock $RuntimeLock -PresetPath $Paths.Preset -Confirm:$false
+    $RuntimeModels = Get-IntelVulkanManagedRuntimeModel -RuntimeLock $RuntimeLock
     $null = Stop-IntelVulkanServer -StatePath $Paths.ProcessState -Confirm:$false
 
     $Listeners = @(Get-NetTCPConnection -LocalPort ([int]$RuntimeLock.listen_port) `
@@ -334,6 +396,7 @@ function Start-IntelVulkanServer {
         endpoint = [string]$RuntimeLock.endpoint
         device = [string]$Device.id
         models = @($Models)
+        runtime_models = @($RuntimeModels)
         started_at = [DateTimeOffset]::UtcNow.ToString('o')
     } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $Paths.ProcessState -Encoding utf8
 
@@ -359,6 +422,7 @@ function Start-IntelVulkanServer {
         Paths = $Paths
         Device = $Device
         Models = @($Models)
+        RuntimeModels = @($RuntimeModels)
         Inventory = $Inventory
     }
 }
