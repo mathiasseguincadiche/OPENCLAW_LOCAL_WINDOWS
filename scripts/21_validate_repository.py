@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -148,6 +149,33 @@ AGENTS = {
 }
 
 
+def get_tracked_files(root: Path) -> list[Path]:
+    """Return files present in the Git index, not ignored/untracked worktree files."""
+    process = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "-z"],
+        check=False,
+        capture_output=True,
+    )
+    if process.returncode != 0:
+        stderr = process.stderr.decode("utf-8", errors="replace").strip()
+        detail = f": {stderr}" if stderr else ""
+        raise RuntimeError(f"impossible d'énumérer les fichiers suivis par Git{detail}")
+
+    return [
+        root / Path(raw.decode("utf-8", errors="surrogateescape"))
+        for raw in process.stdout.split(b"\0")
+        if raw
+    ]
+
+
+def find_forbidden_tracked_files(root: Path) -> list[Path]:
+    return [
+        path
+        for path in get_tracked_files(root)
+        if path.suffix.lower() in FORBIDDEN_SUFFIXES
+    ]
+
+
 def main() -> int:
     failures: list[str] = []
 
@@ -163,8 +191,12 @@ def main() -> int:
                     f"contrat agent absent: agents/{agent}/{filename}"
                 )
 
-    for path in ROOT.rglob("*"):
-        if path.is_file() and path.suffix.lower() in FORBIDDEN_SUFFIXES:
+    try:
+        forbidden_files = find_forbidden_tracked_files(ROOT)
+    except RuntimeError as exc:
+        failures.append(f"index Git illisible: {exc}")
+    else:
+        for path in forbidden_files:
             failures.append(
                 f"artefact interdit dans Git: {path.relative_to(ROOT)}"
             )
