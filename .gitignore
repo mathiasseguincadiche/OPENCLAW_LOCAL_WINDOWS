@@ -19,6 +19,9 @@ venv/
 dist/
 build/
 
+# PowerShell / Pester
+testResults.xml
+
 # Runtime local IA
 state/
 runtime/
