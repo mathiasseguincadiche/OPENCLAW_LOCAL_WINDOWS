@@ -65,6 +65,7 @@ REQUIRED = {
     "docs/PROJECT_PUBLICATION.md",
     "docs/TELEMETRY.md",
     "docs/V7_PARITY_PLUS.md",
+    "docs/GATEWAY_SUPERVISOR_DIAGNOSTICS.md",
     "scripts/20_list_models.py",
     "scripts/21_validate_repository.py",
     "scripts/22_validate_configs.py",
@@ -96,6 +97,7 @@ REQUIRED = {
     "scripts/windows/09_deploy_agents.ps1",
     "scripts/windows/10_test_openclaw_e2e.ps1",
     "scripts/windows/11_install_full.ps1",
+    "scripts/windows/27_gateway_supervisor_diagnostics.ps1",
     "src/clawlocal/versioning.py",
     "src/clawlocal/release_readiness.py",
     "src/clawlocal/openclaw_config.py",
@@ -124,7 +126,9 @@ REQUIRED = {
     "tests/test_versioning.py",
     "tests/test_release_readiness.py",
     "tests/test_release_workflow.py",
+    "tests/test_repository_validator.py",
     "tests/powershell/Repository.Tests.ps1",
+    "tests/powershell/GatewaySupervisorDiagnostics.Tests.ps1",
 }
 
 FORBIDDEN_SUFFIXES = {
