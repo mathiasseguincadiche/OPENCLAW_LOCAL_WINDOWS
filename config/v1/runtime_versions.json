@@ -85,6 +85,10 @@
       "gemma4:12b-it-q4_K_M",
       "hf.co/mistralai/Ministral-3-14B-Reasoning-2512-GGUF:Q4_K_M"
     ],
+    "managed_runtime_models": [
+      "gemma4:Q4_K_M",
+      "hf.co/mistralai/Ministral-3-14B-Reasoning-2512-GGUF:Q4_K_M"
+    ],
     "model_source_policy": "reuse_local_ollama_gguf_blobs",
     "install_policy": "pinned_release_with_sha256",
     "requires_real_b580_e2e": true,
