@@ -100,4 +100,11 @@ Describe 'Gateway OpenClaw relocalisé sous superviseur externe' {
         $script:Installer | Should -Match 'GATEWAY_FAILURE_CLASS='
         $script:Installer | Should -Match 'GATEWAY_DIAGNOSTIC='
     }
+
+    It 'force UTF-8 pour les flux natifs OpenClaw sous Windows' {
+        $script:Supervisor | Should -Match '\[System\.Text\.UTF8Encoding\]::new'
+        $script:Supervisor | Should -Match '\[Console\]::InputEncoding'
+        $script:Supervisor | Should -Match '\[Console\]::OutputEncoding'
+        $script:Supervisor | Should -Match '\$global:OutputEncoding'
+    }
 }
