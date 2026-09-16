@@ -129,13 +129,29 @@ function Get-LegacyOpenClawGatewayTask {
 function Get-ManagedGatewayListenerSnapshot {
     param([Parameter(Mandatory)][string]$PlatformRoot)
 
-    $Listener = Get-NetTCPConnection -State Listen -LocalPort $GatewayPort -ErrorAction SilentlyContinue |
-        Where-Object { $_.LocalAddress -in @('127.0.0.1', '::1') } |
-        Select-Object -First 1
-    if (-not $Listener) {
+    $Listeners = @(
+        Get-NetTCPConnection -State Listen -LocalPort $GatewayPort -ErrorAction SilentlyContinue
+    )
+    if ($Listeners.Count -eq 0) {
         return $null
     }
 
+    $UnexpectedBindings = @(
+        $Listeners | Where-Object { $_.LocalAddress -notin @('127.0.0.1', '::1') }
+    )
+    if ($UnexpectedBindings.Count -gt 0) {
+        $Addresses = @($UnexpectedBindings | ForEach-Object { $_.LocalAddress }) -join ', '
+        throw "Le port $GatewayPort possède un binding non-loopback ($Addresses). Migration refusée."
+    }
+
+    $ListenerPids = @(
+        $Listeners | Select-Object -ExpandProperty OwningProcess -Unique
+    )
+    if ($ListenerPids.Count -ne 1) {
+        throw "Le port $GatewayPort possède plusieurs propriétaires de listener. Migration refusée."
+    }
+
+    $Listener = $Listeners[0]
     $Process = Get-CimInstance Win32_Process -Filter "ProcessId = $($Listener.OwningProcess)" `
         -ErrorAction SilentlyContinue
     if (-not $Process) {
@@ -185,6 +201,7 @@ function Get-ManagedGatewayListenerSnapshot {
 }
 
 function Remove-LegacyOpenClawGateway {
+    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
     param([Parameter(Mandatory)][string]$PlatformRoot)
 
     $LegacyTask = Get-LegacyOpenClawGatewayTask -PlatformRoot $PlatformRoot
@@ -196,6 +213,13 @@ function Remove-LegacyOpenClawGateway {
     # Valider le listener avant toute mutation. Un processus étranger sur le port
     # doit faire échouer la migration plutôt que d'être arrêté par heuristique.
     $Snapshot = Get-ManagedGatewayListenerSnapshot -PlatformRoot $PlatformRoot
+
+    if (-not $PSCmdlet.ShouldProcess(
+        $LegacyTaskName,
+        "Retirer la tâche native historique et transférer le port $GatewayPort au superviseur externe"
+    )) {
+        return
+    }
 
     $ProofDir = Join-Path $PlatformRoot 'proofs\gateway'
     New-Item -ItemType Directory -Path $ProofDir -Force | Out-Null
@@ -217,15 +241,15 @@ function Remove-LegacyOpenClawGateway {
         $Deadline = (Get-Date).AddSeconds($RequestedStopTimeoutSeconds)
         do {
             Start-Sleep -Milliseconds 250
-            $Remaining = Get-NetTCPConnection -State Listen -LocalPort $GatewayPort `
-                -ErrorAction SilentlyContinue |
-                Where-Object { $_.LocalAddress -in @('127.0.0.1', '::1') }
-            if (-not $Remaining) {
+            $Remaining = @(
+                Get-NetTCPConnection -State Listen -LocalPort $GatewayPort -ErrorAction SilentlyContinue
+            )
+            if ($Remaining.Count -eq 0) {
                 break
             }
         } while ((Get-Date) -lt $Deadline)
 
-        if ($Remaining) {
+        if ($Remaining.Count -gt 0) {
             throw "Le Gateway historique n'a pas libéré le port $GatewayPort dans le délai imparti."
         }
         Write-Host "GATEWAY_LEGACY_PID_STOPPED=$LegacyPid"
