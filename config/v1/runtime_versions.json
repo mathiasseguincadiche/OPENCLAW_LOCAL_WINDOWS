@@ -81,8 +81,12 @@
     "context_tokens": 8192,
     "gpu_layers": "auto",
     "offline": true,
-    "managed_models": [
+    "managed_source_models": [
       "gemma4:12b-it-q4_K_M",
+      "hf.co/mistralai/Ministral-3-14B-Reasoning-2512-GGUF:Q4_K_M"
+    ],
+    "managed_models": [
+      "gemma4:Q4_K_M",
       "hf.co/mistralai/Ministral-3-14B-Reasoning-2512-GGUF:Q4_K_M"
     ],
     "managed_runtime_models": [
