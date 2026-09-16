@@ -52,6 +52,8 @@ Describe 'Gateway OpenClaw relocalisé sous superviseur externe' {
         $script:Supervisor | Should -Match 'state\\gateway\.vbs'
         $script:Supervisor | Should -Match 'state\\gateway\.cmd'
         $script:Supervisor | Should -Match 'Migration refusée'
+        $script:Supervisor | Should -Match 'SupportsShouldProcess = \$true'
+        $script:Supervisor | Should -Match 'ShouldProcess'
         $script:Supervisor | Should -Match 'Export-ScheduledTask'
         $script:Supervisor | Should -Match 'GATEWAY_LEGACY_TASK_BACKUP_SHA256='
         $ExportIndex = $script:Supervisor.IndexOf('Export-ScheduledTask -TaskName $LegacyTaskName')
@@ -65,6 +67,8 @@ Describe 'Gateway OpenClaw relocalisé sous superviseur externe' {
     It 'ne stoppe un listener 18789 qu après validation du runtime, du binaire OpenClaw et du parent' {
         $script:Supervisor | Should -Match ([regex]::Escape("`$GatewayPort = 18789"))
         $script:Supervisor | Should -Match 'Get-NetTCPConnection'
+        $script:Supervisor | Should -Match 'binding non-loopback'
+        $script:Supervisor | Should -Match 'plusieurs propriétaires de listener'
         $script:Supervisor | Should -Match 'runtime\\node\\node\.exe'
         $script:Supervisor | Should -Match 'runtime\\npm-global\\node_modules\\openclaw\\dist\\index\.js'
         $script:Supervisor | Should -Match 'ParentCommandLine'
