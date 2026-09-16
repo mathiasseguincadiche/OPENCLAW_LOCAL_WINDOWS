@@ -14,10 +14,11 @@ $ErrorActionPreference = 'Stop'
 $TaskName = 'OPENCLAW_LOCAL Gateway'
 $GatewayPort = 18789
 $TaskSchedulerOperationalLog = 'Microsoft-Windows-TaskScheduler/Operational'
+$RequestedPlatformRoot = $PlatformRootOverride
 
 function Get-PlatformRoot {
-    if (-not [string]::IsNullOrWhiteSpace($PlatformRootOverride)) {
-        return $PlatformRootOverride
+    if (-not [string]::IsNullOrWhiteSpace($RequestedPlatformRoot)) {
+        return $RequestedPlatformRoot
     }
     if ($env:OPENCLAW_LOCAL_ROOT) {
         return $env:OPENCLAW_LOCAL_ROOT
@@ -102,7 +103,7 @@ function Enable-OperationalLog {
     }
 }
 
-function Get-RecentTaskSchedulerEvents {
+function Get-RecentTaskSchedulerEvent {
     $LogState = Get-OperationalLogState
     if (-not $LogState.available -or -not $LogState.enabled) {
         return @()
@@ -123,22 +124,22 @@ function Get-RecentTaskSchedulerEvents {
     )
 
     $Events = @()
-    foreach ($Event in $Candidates) {
-        $Xml = $Event.ToXml()
+    foreach ($TaskEvent in $Candidates) {
+        $Xml = $TaskEvent.ToXml()
         if ($Xml.IndexOf($TaskName, [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
             continue
         }
 
         $Events += [ordered]@{
-            event_id = [int]$Event.Id
-            record_id = [int64]$Event.RecordId
-            time_created_utc = if ($Event.TimeCreated) {
-                $Event.TimeCreated.ToUniversalTime().ToString('o')
+            event_id = [int]$TaskEvent.Id
+            record_id = [int64]$TaskEvent.RecordId
+            time_created_utc = if ($TaskEvent.TimeCreated) {
+                $TaskEvent.TimeCreated.ToUniversalTime().ToString('o')
             }
             else {
                 $null
             }
-            level = [string]$Event.LevelDisplayName
+            level = [string]$TaskEvent.LevelDisplayName
         }
 
         if ($Events.Count -ge $MaxEvents) {
@@ -263,7 +264,7 @@ function Get-DiagnosticPayload {
             next_run_time = if ($Info) { $Info.NextRunTime } else { $null }
         }
         task_scheduler_operational = Get-OperationalLogState
-        task_scheduler_events = @(Get-RecentTaskSchedulerEvents)
+        task_scheduler_events = @(Get-RecentTaskSchedulerEvent)
         listeners = @(Get-GatewayListenerDiagnostic)
         rpc = Get-GatewayRpcDiagnostic -PlatformRoot $PlatformRoot
     }
