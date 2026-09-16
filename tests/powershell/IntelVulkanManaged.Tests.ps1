@@ -25,6 +25,7 @@ Describe 'Intel Vulkan managed B580 hybrid runtime' {
         $script:HybridMenu = Get-Content -Raw -LiteralPath (
             Join-Path $script:HybridRepoRoot 'menu.ps1'
         )
+        . (Join-Path $script:HybridRepoRoot 'scripts\windows\lib\intel_vulkan.ps1')
     }
 
     It 'verrouille le runtime Vulkan géré sur son endpoint local' {
@@ -40,9 +41,32 @@ Describe 'Intel Vulkan managed B580 hybrid runtime' {
         [int]$script:HybridRuntime.llama_cpp_vulkan.parallel | Should -Be 1
         [int]$script:HybridRuntime.llama_cpp_vulkan.context_tokens | Should -Be 8192
         [string]$script:HybridRuntime.llama_cpp_vulkan.gpu_layers | Should -Be 'auto'
-        @($script:HybridRuntime.llama_cpp_vulkan.managed_models) |
+        @($script:HybridRuntime.llama_cpp_vulkan.managed_source_models) |
             Should -Be @(
                 'gemma4:12b-it-q4_K_M',
+                'hf.co/mistralai/Ministral-3-14B-Reasoning-2512-GGUF:Q4_K_M'
+            )
+        @($script:HybridRuntime.llama_cpp_vulkan.managed_models) |
+            Should -Be @(
+                'gemma4:Q4_K_M',
+                'hf.co/mistralai/Ministral-3-14B-Reasoning-2512-GGUF:Q4_K_M'
+            )
+        @($script:HybridRuntime.llama_cpp_vulkan.managed_runtime_models) |
+            Should -Be @(
+                'gemma4:Q4_K_M',
+                'hf.co/mistralai/Ministral-3-14B-Reasoning-2512-GGUF:Q4_K_M'
+            )
+    }
+
+    It 'reproduit la canonicalisation des IDs du routeur llama.cpp b10621' {
+        ConvertTo-IntelVulkanRouterModelId -LogicalModel 'gemma4:12b-it-q4_K_M' |
+            Should -Be 'gemma4:Q4_K_M'
+        ConvertTo-IntelVulkanRouterModelId `
+            -LogicalModel 'hf.co/mistralai/Ministral-3-14B-Reasoning-2512-GGUF:Q4_K_M' |
+            Should -Be 'hf.co/mistralai/Ministral-3-14B-Reasoning-2512-GGUF:Q4_K_M'
+        @(Get-IntelVulkanManagedRuntimeModel -RuntimeLock $script:HybridRuntime.llama_cpp_vulkan) |
+            Should -Be @(
+                'gemma4:Q4_K_M',
                 'hf.co/mistralai/Ministral-3-14B-Reasoning-2512-GGUF:Q4_K_M'
             )
     }
@@ -62,6 +86,9 @@ Describe 'Intel Vulkan managed B580 hybrid runtime' {
         $script:VulkanHelper | Should -Match 'Resolve-OllamaGgufPath'
         $script:VulkanHelper | Should -Match 'Invoke-IntelVulkanModelUnload'
         $script:VulkanHelper | Should -Match 'Get-IntelVulkanManagedModel'
+        $script:VulkanHelper | Should -Match 'Get-IntelVulkanManagedSourceModel'
+        $script:VulkanHelper | Should -Match 'Get-IntelVulkanManagedRuntimeModel'
+        $script:VulkanHelper | Should -Match 'ConvertTo-IntelVulkanRouterModelId'
         $script:B580Helper | Should -Match 'Resolve-OllamaGgufPath'
         $script:B580Helper | Should -Match 'ollama show'
     }
@@ -84,9 +111,11 @@ Describe 'Intel Vulkan managed B580 hybrid runtime' {
         $script:HybridConfigure | Should -Match "ValidateSet\('ollama-vulkan', 'b580-hybrid'\)"
         $script:HybridConfigure | Should -Match 'INTEL_VULKAN_API_KEY'
         $script:HybridConfigure | Should -Match 'llama_cpp_vulkan'
+        $script:HybridConfigure | Should -Match 'managed_runtime_models'
         $script:HybridE2E | Should -Match "ValidateSet\('ollama-vulkan', 'b580-hybrid'\)"
         $script:HybridE2E | Should -Match 'Get-AgentPrimaryModelRef'
         $script:HybridE2E | Should -Match 'provider_by_agent'
+        $script:HybridE2E | Should -Match 'managed_models'
         $script:HybridE2E | Should -Match 'intel-vulkan/hf\.co/mistralai/Ministral-3-14B-Reasoning-2512-GGUF:Q4_K_M'
         $script:HybridE2E | Should -Match 'vulkan-tool-ok\.txt'
         $script:HybridE2E | Should -Match 'Test-ExpectedProvider'
