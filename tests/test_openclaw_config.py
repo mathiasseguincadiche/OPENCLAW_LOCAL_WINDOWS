@@ -19,6 +19,7 @@ EXPECTED_AGENTS = {
 }
 
 MINISTRAL = "hf.co/mistralai/Ministral-3-14B-Reasoning-2512-GGUF:Q4_K_M"
+GEMMA_VULKAN = "gemma4:Q4_K_M"
 EXPECTED_MODELS = {
     "qwen3.5:9b-q4_K_M",
     "gemma4:12b-it-q4_K_M",
@@ -29,7 +30,7 @@ EXPECTED_DIRECT_OLLAMA_MODELS = {
     "gemma4:12b-it-q4_K_M",
 }
 EXPECTED_VULKAN_MODELS = {
-    "gemma4:12b-it-q4_K_M",
+    GEMMA_VULKAN,
     MINISTRAL,
 }
 OPENCLAW_AGENT_CONTEXT_TOKENS = 16384
@@ -234,10 +235,10 @@ def test_b580_hybrid_routes_each_model_to_vulkan_backend() -> None:
     entries = _entries_by_id(patch)
     assert entries["chef-operations"]["model"] == {
         "primary": "ollama/qwen3.5:9b-q4_K_M",
-        "fallbacks": ["intel-vulkan/gemma4:12b-it-q4_K_M"],
+        "fallbacks": [f"intel-vulkan/{GEMMA_VULKAN}"],
     }
     assert entries["architecte-solutions"]["model"] == {
-        "primary": "intel-vulkan/gemma4:12b-it-q4_K_M",
+        "primary": f"intel-vulkan/{GEMMA_VULKAN}",
         "fallbacks": ["ollama/qwen3.5:9b-q4_K_M"],
     }
     assert entries["ingenieur-devops"]["model"] == {
@@ -247,7 +248,7 @@ def test_b580_hybrid_routes_each_model_to_vulkan_backend() -> None:
     defaults = patch["agents"]["defaults"]
     assert defaults["model"] == {
         "primary": "ollama/qwen3.5:9b-q4_K_M",
-        "fallbacks": ["intel-vulkan/gemma4:12b-it-q4_K_M"],
+        "fallbacks": [f"intel-vulkan/{GEMMA_VULKAN}"],
     }
     expected_multimodal = {
         "primary": "ollama/qwen3.5:9b-q4_K_M",
