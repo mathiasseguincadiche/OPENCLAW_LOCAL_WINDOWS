@@ -166,6 +166,21 @@ function Get-IntelVulkanManagedModel {
     return $Models
 }
 
+function Get-IntelVulkanManagedSourceModel {
+    param([Parameter(Mandatory)]$RuntimeLock)
+
+    $Models = @(
+        $RuntimeLock.managed_source_models | ForEach-Object { [string]$_ }
+    )
+    if ($Models.Count -ne 2) {
+        throw (
+            'Le profil hybride exige exactement 2 sources GGUF Ollama; ' +
+            "détectées=$($Models.Count)."
+        )
+    }
+    return $Models
+}
+
 function ConvertTo-IntelVulkanRouterModelId {
     param([Parameter(Mandatory)][string]$LogicalModel)
 
@@ -193,26 +208,37 @@ function ConvertTo-IntelVulkanRouterModelId {
 function Get-IntelVulkanManagedRuntimeModel {
     param([Parameter(Mandatory)]$RuntimeLock)
 
-    $LogicalModels = Get-IntelVulkanManagedModel -RuntimeLock $RuntimeLock
+    $SourceModels = Get-IntelVulkanManagedSourceModel -RuntimeLock $RuntimeLock
+    $ManagedModels = Get-IntelVulkanManagedModel -RuntimeLock $RuntimeLock
     $RuntimeModels = @(
         $RuntimeLock.managed_runtime_models | ForEach-Object { [string]$_ }
     )
-    if ($RuntimeModels.Count -ne $LogicalModels.Count) {
+    if ($RuntimeModels.Count -ne $ManagedModels.Count) {
         throw (
             'Contrat managed_runtime_models incohérent: ' +
-            "sources=$($LogicalModels.Count) runtime=$($RuntimeModels.Count)."
+            "managed=$($ManagedModels.Count) runtime=$($RuntimeModels.Count)."
         )
     }
 
-    for ($Index = 0; $Index -lt $LogicalModels.Count; $Index++) {
-        $Derived = ConvertTo-IntelVulkanRouterModelId -LogicalModel $LogicalModels[$Index]
+    for ($Index = 0; $Index -lt $ManagedModels.Count; $Index++) {
+        if (-not [string]::Equals(
+            $ManagedModels[$Index],
+            $RuntimeModels[$Index],
+            [System.StringComparison]::OrdinalIgnoreCase
+        )) {
+            throw (
+                "Contrat ID routeur Vulkan incohérent: managed=$($ManagedModels[$Index]) " +
+                "runtime=$($RuntimeModels[$Index])."
+            )
+        }
+        $Derived = ConvertTo-IntelVulkanRouterModelId -LogicalModel $SourceModels[$Index]
         if (-not [string]::Equals(
             $Derived,
             $RuntimeModels[$Index],
             [System.StringComparison]::OrdinalIgnoreCase
         )) {
             throw (
-                "Contrat ID routeur Vulkan incohérent pour $($LogicalModels[$Index]): " +
+                "Contrat ID routeur Vulkan incohérent pour $($SourceModels[$Index]): " +
                 "déclaré=$($RuntimeModels[$Index]) dérivé=$Derived."
             )
         }
@@ -232,6 +258,7 @@ function New-IntelVulkanModelPreset {
     $null = $RepoRoot
     $null = $PlatformRoot
     $Models = Get-IntelVulkanManagedModel -RuntimeLock $RuntimeLock
+    $SourceModels = Get-IntelVulkanManagedSourceModel -RuntimeLock $RuntimeLock
     $null = Get-IntelVulkanManagedRuntimeModel -RuntimeLock $RuntimeLock
     $Lines = @(
         'version = 1',
@@ -240,15 +267,17 @@ function New-IntelVulkanModelPreset {
         '; Qwen reste volontairement sur Ollama/Vulkan.',
         ''
     )
-    foreach ($Model in $Models) {
-        $Path = Resolve-OllamaGgufPath -Model $Model
+    for ($Index = 0; $Index -lt $Models.Count; $Index++) {
+        $Model = $Models[$Index]
+        $SourceModel = $SourceModels[$Index]
+        $Path = Resolve-OllamaGgufPath -Model $SourceModel
         $Normalized = $Path -replace '\\', '/'
-        $Lines += "[$Model]"
+        $Lines += "[$SourceModel]"
         $Lines += "model = $Normalized"
         $Lines += 'load-on-startup = false'
         $Lines += 'stop-timeout = 30'
         $Lines += ''
-        Write-Host "OK  GGUF Vulkan $Model -> $Path"
+        Write-Host "OK  GGUF Vulkan $SourceModel -> $Model -> $Path"
     }
     if ($PSCmdlet.ShouldProcess($PresetPath, 'Generate Intel Vulkan model preset')) {
         New-Item -ItemType Directory -Path (Split-Path -Parent $PresetPath) -Force | Out-Null
@@ -345,6 +374,7 @@ function Start-IntelVulkanServer {
 
     $Models = New-IntelVulkanModelPreset -RepoRoot $RepoRoot -PlatformRoot $PlatformRoot `
         -RuntimeLock $RuntimeLock -PresetPath $Paths.Preset -Confirm:$false
+    $SourceModels = Get-IntelVulkanManagedSourceModel -RuntimeLock $RuntimeLock
     $RuntimeModels = Get-IntelVulkanManagedRuntimeModel -RuntimeLock $RuntimeLock
     $null = Stop-IntelVulkanServer -StatePath $Paths.ProcessState -Confirm:$false
 
@@ -395,6 +425,7 @@ function Start-IntelVulkanServer {
         pid = $Process.Id
         endpoint = [string]$RuntimeLock.endpoint
         device = [string]$Device.id
+        source_models = @($SourceModels)
         models = @($Models)
         runtime_models = @($RuntimeModels)
         started_at = [DateTimeOffset]::UtcNow.ToString('o')
@@ -421,6 +452,7 @@ function Start-IntelVulkanServer {
         RuntimeLock = $RuntimeLock
         Paths = $Paths
         Device = $Device
+        SourceModels = @($SourceModels)
         Models = @($Models)
         RuntimeModels = @($RuntimeModels)
         Inventory = $Inventory
