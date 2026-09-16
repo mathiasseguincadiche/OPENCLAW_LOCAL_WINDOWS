@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,11 @@ CONFIG = ROOT / "config" / "v1"
 EXPECTED_MODELS = {
     "qwen-max": "qwen3.5:9b-q4_K_M",
     "gemma-deep": "gemma4:12b-it-q4_K_M",
+    "devstral-devops": "hf.co/mistralai/Ministral-3-14B-Reasoning-2512-GGUF:Q4_K_M",
+}
+EXPECTED_VULKAN_RUNTIME_IDS = {
+    "qwen-max": "qwen3.5:9b-q4_K_M",
+    "gemma-deep": "gemma4:Q4_K_M",
     "devstral-devops": "hf.co/mistralai/Ministral-3-14B-Reasoning-2512-GGUF:Q4_K_M",
 }
 EXPECTED_CHALLENGERS = {
@@ -88,6 +94,14 @@ def load_yaml(name: str) -> dict[str, Any]:
     return value
 
 
+def load_json(name: str) -> dict[str, Any]:
+    with (CONFIG / name).open(encoding="utf-8") as handle:
+        value = json.load(handle)
+    if not isinstance(value, dict):
+        raise ValueError(f"{name}: racine JSON invalide")
+    return value
+
+
 def read_required(path: str, failures: list[str]) -> str:
     target = ROOT / path
     if not target.is_file():
@@ -133,8 +147,12 @@ def validate_catalog(catalog: dict[str, Any], failures: list[str]) -> None:
             )
         if "sycl_runtime_id" in model:
             failures.append(f"{alias}: alias runtime SYCL interdit")
-        if model.get("vulkan_runtime_id") != runtime_id:
-            failures.append(f"{alias}: vulkan_runtime_id doit suivre le runtime local")
+        expected_vulkan = EXPECTED_VULKAN_RUNTIME_IDS[alias]
+        if model.get("vulkan_runtime_id") != expected_vulkan:
+            failures.append(
+                f"{alias}: vulkan_runtime_id={model.get('vulkan_runtime_id')} "
+                f"attendu={expected_vulkan}"
+            )
         if model.get("provider") != "ollama":
             failures.append(f"{alias}: provider Ollama local attendu")
         if model.get("required") is not True or model.get("routing_active") is not True:
@@ -165,6 +183,54 @@ def validate_catalog(catalog: dict[str, Any], failures: list[str]) -> None:
             failures.append("devstral-devops: source GGUF officielle attendue")
         if specialist.get("multimodal_handoff") != ["qwen-max", "gemma-deep"]:
             failures.append("devstral-devops: handoff multimodal Qwen/Gemma requis")
+
+
+def validate_vulkan_runtime_lock(
+    runtime_versions: dict[str, Any],
+    catalog: dict[str, Any],
+    failures: list[str],
+) -> None:
+    lock = runtime_versions.get("llama_cpp_vulkan")
+    if not isinstance(lock, dict):
+        failures.append("runtime_versions: contrat llama_cpp_vulkan absent")
+        return
+
+    expected_sources = [
+        EXPECTED_MODELS["gemma-deep"],
+        EXPECTED_MODELS["devstral-devops"],
+    ]
+    expected_router = [
+        EXPECTED_VULKAN_RUNTIME_IDS["gemma-deep"],
+        EXPECTED_VULKAN_RUNTIME_IDS["devstral-devops"],
+    ]
+    source_models = [str(value) for value in lock.get("managed_source_models", [])]
+    managed_models = [str(value) for value in lock.get("managed_models", [])]
+    runtime_models = [str(value) for value in lock.get("managed_runtime_models", [])]
+
+    if source_models != expected_sources:
+        failures.append(
+            "runtime_versions: managed_source_models doit conserver les IDs Ollama/GGUF"
+        )
+    if managed_models != expected_router:
+        failures.append(
+            "runtime_versions: managed_models doit utiliser les IDs canoniques du routeur llama.cpp"
+        )
+    if runtime_models != expected_router:
+        failures.append(
+            "runtime_versions: managed_runtime_models doit suivre les IDs canoniques du routeur"
+        )
+    if managed_models != runtime_models:
+        failures.append("runtime_versions: managed_models/runtime_models divergent")
+
+    models = catalog.get("models", {})
+    catalog_router = [
+        str(models.get("gemma-deep", {}).get("vulkan_runtime_id", "")),
+        str(models.get("devstral-devops", {}).get("vulkan_runtime_id", "")),
+    ]
+    if catalog_router != expected_router:
+        failures.append(
+            "model_catalog/runtime_versions: IDs Vulkan routeur incohérents"
+        )
 
 
 def validate_challenger(catalog: dict[str, Any], failures: list[str]) -> None:
@@ -337,8 +403,10 @@ def main() -> int:
     catalog = load_yaml("model_catalog.yaml")
     routing = load_yaml("model_routing.yaml")
     qualification = load_yaml("qualification_policy.yaml")
+    runtime_versions = load_json("runtime_versions.json")
 
     validate_catalog(catalog, failures)
+    validate_vulkan_runtime_lock(runtime_versions, catalog, failures)
     validate_challenger(catalog, failures)
     validate_routing(routing, failures)
     validate_qualification(qualification, failures)
@@ -353,6 +421,7 @@ def main() -> int:
 
     print("OK  Architecture V2 local-only")
     print("OK  flotte routée: Qwen3.5 9B + Gemma 4 12B + Ministral 3 14B Reasoning")
+    print("OK  IDs llama.cpp/Vulkan canoniques alignés avec les sources GGUF")
     print("OK  accélération GPU LLM: Vulkan uniquement")
     print("OK  challenger local: Granite 4.2 8B")
     print("OK  aucun catalogue ni routage de modèle cloud")
