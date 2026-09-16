@@ -39,10 +39,41 @@ Describe 'Gateway OpenClaw relocalisé sous superviseur externe' {
             '$ExistingTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue'
         )
         $StopIndex = $script:Supervisor.IndexOf('Invoke-ExternalGatewaySupervisorStop', $ExistingIndex)
+        $MigrationIndex = $script:Supervisor.IndexOf('Remove-LegacyOpenClawGateway -PlatformRoot $PlatformRoot', $ExistingIndex)
         $CopyIndex = $script:Supervisor.IndexOf('Copy-Item -LiteralPath $SourcePath', $ExistingIndex)
         $ExistingIndex | Should -BeGreaterOrEqual 0
         $StopIndex | Should -BeGreaterThan $ExistingIndex
-        $CopyIndex | Should -BeGreaterThan $StopIndex
+        $MigrationIndex | Should -BeGreaterThan $StopIndex
+        $CopyIndex | Should -BeGreaterThan $MigrationIndex
+    }
+
+    It 'migre uniquement la tâche native historique attendue avec preuve avant mutation' {
+        $script:Supervisor | Should -Match ([regex]::Escape("`$LegacyTaskName = 'OpenClaw Gateway'"))
+        $script:Supervisor | Should -Match 'state\\gateway\.vbs'
+        $script:Supervisor | Should -Match 'state\\gateway\.cmd'
+        $script:Supervisor | Should -Match 'Migration refusée'
+        $script:Supervisor | Should -Match 'SupportsShouldProcess = \$true'
+        $script:Supervisor | Should -Match 'ShouldProcess'
+        $script:Supervisor | Should -Match 'Export-ScheduledTask'
+        $script:Supervisor | Should -Match 'GATEWAY_LEGACY_TASK_BACKUP_SHA256='
+        $ExportIndex = $script:Supervisor.IndexOf('Export-ScheduledTask -TaskName $LegacyTaskName')
+        $DisableIndex = $script:Supervisor.IndexOf('Disable-ScheduledTask -TaskName $LegacyTaskName')
+        $UnregisterIndex = $script:Supervisor.IndexOf('Unregister-ScheduledTask -TaskName $LegacyTaskName')
+        $ExportIndex | Should -BeGreaterOrEqual 0
+        $DisableIndex | Should -BeGreaterThan $ExportIndex
+        $UnregisterIndex | Should -BeGreaterThan $DisableIndex
+    }
+
+    It 'ne stoppe un listener 18789 qu après validation du runtime, du binaire OpenClaw et du parent' {
+        $script:Supervisor | Should -Match ([regex]::Escape("`$GatewayPort = 18789"))
+        $script:Supervisor | Should -Match 'Get-NetTCPConnection'
+        $script:Supervisor | Should -Match 'binding non-loopback'
+        $script:Supervisor | Should -Match 'plusieurs propriétaires de listener'
+        $script:Supervisor | Should -Match 'runtime\\node\\node\.exe'
+        $script:Supervisor | Should -Match 'runtime\\npm-global\\node_modules\\openclaw\\dist\\index\.js'
+        $script:Supervisor | Should -Match 'ParentCommandLine'
+        $script:Supervisor | Should -Match 'Stop-Process -Id \$LegacyPid -Force'
+        $script:Supervisor | Should -Match 'GATEWAY_LEGACY_PID_STOPPED='
     }
 
     It 'installe un Scheduled Task au logon avec reprise bornée' {
