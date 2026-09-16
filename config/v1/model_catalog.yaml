@@ -38,7 +38,7 @@ models:
   gemma-deep:
     provider: ollama
     runtime_id: gemma4:12b-it-q4_K_M
-    vulkan_runtime_id: gemma4:12b-it-q4_K_M
+    vulkan_runtime_id: gemma4:Q4_K_M
     family: gemma4
     class: local_deep
     input: [text, image]
